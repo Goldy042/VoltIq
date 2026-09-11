@@ -1,15 +1,14 @@
-'use client';
-
+"use client";
 import React, { useState } from 'react';
 import { ZapOffIcon } from 'lucide-react';
-import { CitizenHeader } from '@/components/citizen/CitizenHeader';
-import { AreaStatusCard } from '@/components/citizen/AreaStatusCard';
-import { PredictedAlertCard } from '@/components/citizen/PredictedAlertCard';
-import { ReportList } from '@/components/citizen/ReportList';
-import { ReportOutageModal } from '@/components/citizen/ReportOutageModal';
-import { OutageMap } from '@/components/OutageMap';
-import { citizenProfile, pastReports } from '@/data/citizen';
-import type { CitizenReport } from '@/data/citizen';
+import { CitizenHeader } from '../components/citizen/CitizenHeader';
+import { AreaStatusCard } from '../components/citizen/AreaStatusCard';
+import { PredictedAlertCard } from '../components/citizen/PredictedAlertCard';
+import { ReportList } from '../components/citizen/ReportList';
+import { ReportOutageModal } from '../components/citizen/ReportOutageModal';
+import { OutageMap } from '../components/OutageMap';
+import { citizenProfile, pastReports } from '../data/citizen';
+import type { CitizenReport } from '../data/citizen';
 
 interface DashboardProps {
   /** Open the report sheet on arrival (used by the /report route). */

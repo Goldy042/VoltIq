@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { SearchIcon, XIcon } from 'lucide-react';
 
 interface MapTopBarProps {
@@ -60,7 +60,7 @@ export function MapTopBar({
     <header className="z-30 w-full border-b border-line bg-canvas">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 md:flex-nowrap md:px-6">
         <Link
-          to="/"
+          href="/"
           className="font-display text-base font-semibold tracking-tight text-ink transition-colors duration-150 ease-out hover:text-accent">
           
           Gridpulse<span className="text-accent">.</span>
@@ -122,7 +122,7 @@ export function MapTopBar({
           </span>
 
           <Link
-            to={view === 'operator' ? '/map' : '/operations'}
+            href={view === 'operator' ? '/map' : '/operations'}
             className="ml-2 hidden border border-line-strong px-3 py-2 font-body text-xs text-ink-muted transition-colors duration-150 ease-out hover:border-ink hover:text-ink sm:inline-block"
             style={{ borderRadius: 'var(--radius-sm)' }}>
             

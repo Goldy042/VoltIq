@@ -25,7 +25,7 @@ export function Footer() {
         <div className="grid grid-cols-1 gap-12 border-t border-line pt-12 lg:grid-cols-12">
           <div className="lg:col-span-4">
             <p className="font-display text-lg font-semibold tracking-tight text-ink">
-              Gridpulse<span className="text-accent">.</span>
+              Volt<span className="text-accent">Iq</span>
             </p>
             <p className="mt-4 max-w-[34ch] font-body text-sm leading-body text-ink-muted">
               Outage intelligence for Bellhaven County, built with the
@@ -33,10 +33,10 @@ export function Footer() {
             </p>
             <address className="mt-8 not-italic font-body text-sm text-ink-muted">
               <a
-                href="mailto:hello@gridpulse.energy"
+                href="mailto:hello@voltiq.com"
                 className="transition-colors duration-150 ease-out hover:text-accent">
                 
-                hello@gridpulse.energy
+                hello@voltiq.com
               </a>
               <br />
               <a
@@ -97,7 +97,7 @@ export function Footer() {
 
         <div className="mt-16 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6">
           <p className="font-body text-2xs text-ink-faint">
-            © 2026 Gridpulse Energy Systems
+            © 2026 VoltIq Energy Systems
           </p>
           <ul className="flex items-center gap-8">
             {['Privacy', 'Terms', 'Report a bug'].map((item) =>

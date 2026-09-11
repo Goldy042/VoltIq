@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRightIcon } from 'lucide-react';
 import { Reveal } from './Reveal';
 
@@ -15,7 +15,7 @@ export function ForCitizens() {
               
               <div className="flex items-center justify-between">
                 <span className="font-body text-2xs uppercase tracking-wide text-ink-faint">
-                  Gridpulse alert
+                  VoltIqert
                 </span>
                 <span className="font-body text-2xs tabular-nums text-ink-faint">
                   14:52
@@ -56,7 +56,7 @@ export function ForCitizens() {
 
             <div className="mt-10 flex flex-wrap items-center gap-3">
               <Link
-                to="/signup"
+                href="/signup"
                 className="group inline-flex items-center gap-2 border border-ink bg-ink px-6 py-3 font-body text-sm font-medium text-canvas transition-colors duration-150 ease-out hover:border-accent hover:bg-accent hover:text-accent-on"
                 style={{ borderRadius: 'var(--radius-sm)' }}>
                 
@@ -67,7 +67,7 @@ export function ForCitizens() {
                 
               </Link>
               <Link
-                to="/report"
+                href="/report"
                 className="inline-flex items-center border border-line-strong px-6 py-3 font-body text-sm text-ink transition-colors duration-150 ease-out hover:border-ink"
                 style={{ borderRadius: 'var(--radius-sm)' }}>
                 

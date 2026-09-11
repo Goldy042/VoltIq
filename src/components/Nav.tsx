@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 
 const links = [
 { label: 'How it works', href: '#how-it-works', to: null },
@@ -27,7 +27,7 @@ export function Nav() {
           <li key={link.label}>
               {link.to ?
             <Link
-              to={link.to}
+              href={link.to}
               className="font-body text-sm text-ink-muted transition-colors duration-150 ease-out hover:text-ink">
               
                   {link.label}
@@ -46,13 +46,13 @@ export function Nav() {
 
         <div className="ml-auto flex items-center gap-2">
           <Link
-            to="/login"
+            href="/login"
             className="px-3 py-2 font-body text-sm text-ink-muted transition-colors duration-150 ease-out hover:text-ink">
             
             Login
           </Link>
           <Link
-            to="/report"
+            href="/report"
             className="border border-ink bg-ink px-4 py-2 font-body text-sm font-medium text-canvas transition-colors duration-150 ease-out hover:border-accent hover:bg-accent hover:text-accent-on"
             style={{ borderRadius: 'var(--radius-sm)' }}>
             

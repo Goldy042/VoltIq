@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowUpRightIcon } from 'lucide-react';
 import { OutageMap } from './OutageMap';
 import { Reveal } from './Reveal';
@@ -19,7 +19,7 @@ export function LiveMapPreview() {
             </h2>
           </div>
           <Link
-            to="/map"
+            href="/map"
             className="group inline-flex items-center gap-2 border-b border-ink pb-1 font-body text-sm text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent">
             
             Open the full map

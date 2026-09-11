@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 
 interface AuthShellProps {
   eyebrow: string;
@@ -16,13 +16,13 @@ export function AuthShell({ eyebrow, title, intro, children, footer }: AuthShell
       <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10">
         <header className="flex items-center justify-between border-b border-line py-4">
           <Link
-            to="/"
+            href="/"
             className="font-display text-lg font-semibold tracking-tight text-ink transition-colors duration-150 ease-out hover:text-accent">
             
             Gridpulse<span className="text-accent">.</span>
           </Link>
           <Link
-            to="/"
+            href="/"
             className="font-body text-sm text-ink-muted transition-colors duration-150 ease-out hover:text-ink">
             
             Back to site

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { ArrowRightIcon } from 'lucide-react';
 import { GridSignal } from './GridSignal';
 
@@ -39,7 +39,7 @@ export function Hero({ audience = 'citizens' }: HeroProps) {
 
             <div className="mt-10 flex flex-wrap items-center gap-3">
               <Link
-                to="/report"
+                href="/report"
                 className="group inline-flex items-center gap-2 border border-ink bg-ink px-6 py-3 font-body text-sm font-medium text-canvas transition-colors duration-150 ease-out hover:border-accent hover:bg-accent hover:text-accent-on"
                 style={{ borderRadius: 'var(--radius-sm)' }}>
                 

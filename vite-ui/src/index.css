@@ -136,7 +136,7 @@ body {
     fill-opacity: 0.16;
   }
 }
-/* ---- Leaflet chrome, restyled to the GridPulse system ---- */
+/* ---- Leaflet chrome, restyled to the VoltIq system ---- */
 .leaflet-container {
   background: var(--surface-sunken);
   font-family: var(--font-body);

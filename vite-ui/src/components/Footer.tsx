@@ -33,10 +33,10 @@ export function Footer() {
             </p>
             <address className="mt-8 not-italic font-body text-sm text-ink-muted">
               <a
-                href="mailto:hello@gridpulse.energy"
+                href="mailto:hello@voltiq.energy"
                 className="transition-colors duration-150 ease-out hover:text-accent">
                 
-                hello@gridpulse.energy
+                hello@voltiq.energy
               </a>
               <br />
               <a

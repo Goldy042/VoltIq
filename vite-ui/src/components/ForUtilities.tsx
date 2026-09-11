@@ -27,7 +27,7 @@ export function ForUtilities() {
               Stop learning about faults from the call centre.
             </h2>
             <p className="mt-8 max-w-[52ch] font-body text-lg leading-body text-ink-muted">
-              GridPulse turns scattered citizen reports and feeder telemetry into
+              VoltIq turns scattered citizen reports and feeder telemetry into
               a single ranked worklist: where the fault is, how many households
               it holds, and which crew is closest. Predicted failures arrive
               early enough to be scheduled rather than survived.
