@@ -7,6 +7,12 @@
       "skillPath": "skills/core/clerk-backend-api/SKILL.md",
       "computedHash": "cbcad1341a7d32fed789abe864c829f27a2858dc8ba68b92254e9beb53467148"
     },
+    "clerk-custom-ui": {
+      "source": "clerk/skills",
+      "sourceType": "github",
+      "skillPath": "skills/core/clerk-custom-ui/SKILL.md",
+      "computedHash": "27cea644237b0458967891474a3300d54cb4693bba19b964025c73a8ca035fb2"
+    },
     "clerk-nextjs-patterns": {
       "source": "clerk/skills",
       "sourceType": "github",
