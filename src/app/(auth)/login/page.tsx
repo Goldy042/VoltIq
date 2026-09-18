@@ -1,12 +1,13 @@
 "use client";
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { AuthShell } from '../components/auth/AuthShell';
-import { TextField } from '../components/ui/TextField';
-import { Button } from '../components/ui/Button';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { TextField } from '@/components/ui/TextField';
+import { Button } from '@/components/ui/Button';
 
 export function Login() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +21,7 @@ export function Login() {
     }
     setError(null);
     setPending(true);
-    window.setTimeout(() => navigate('/dashboard'), 500);
+    window.setTimeout(() => router.push('/dashboard'), 500);
   };
 
   return (
@@ -32,14 +33,14 @@ export function Login() {
       <p>
           No account yet?{' '}
           <Link
-          to="/signup"
+          href="/signup"
           className="border-b border-ink text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent">
           
             Create one
           </Link>{' '}
           — or{' '}
           <Link
-          to="/report"
+          href="/report"
           className="border-b border-line-strong transition-colors duration-150 ease-out hover:border-ink hover:text-ink">
           
             report an outage without signing in

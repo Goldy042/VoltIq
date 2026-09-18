@@ -14,7 +14,7 @@ import {
   type OutagePoint,
   type OutageState,
   type PredictedZone } from
-'../data/outages';
+'@/data/outages';
 
 interface LiveMapProps {
   /** Operator adds dispatch and status controls to each fault. */

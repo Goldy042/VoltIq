@@ -1,13 +1,14 @@
 "use client";
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { LocateFixedIcon } from 'lucide-react';
-import { AuthShell } from '../components/auth/AuthShell';
-import { TextField } from '../components/ui/TextField';
-import { Button } from '../components/ui/Button';
+import { AuthShell } from '@/components/auth/AuthShell';
+import { TextField } from '@/components/ui/TextField';
+import { Button } from '@/components/ui/Button';
 
 export function Signup() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [address, setAddress] = useState('');
@@ -33,7 +34,7 @@ export function Signup() {
     }
     setError(null);
     setPending(true);
-    window.setTimeout(() => navigate('/dashboard'), 500);
+    window.setTimeout(() => router.push('/dashboard'), 500);
   };
 
   return (
@@ -45,7 +46,7 @@ export function Signup() {
       <p>
           Already have an account?{' '}
           <Link
-          to="/login"
+          href="/login"
           className="border-b border-ink text-ink transition-colors duration-150 ease-out hover:border-accent hover:text-accent">
           
             Sign in

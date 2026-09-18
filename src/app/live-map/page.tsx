@@ -1,11 +1,11 @@
 "use client";
 import React, { useMemo, useState } from 'react';
 import { ChevronUpIcon } from 'lucide-react';
-import { MapTopBar } from '../components/map/MapTopBar';
-import { MapLegend } from '../components/map/MapLegend';
-import { OutageList } from '../components/map/OutageList';
-import { OutageDetail } from '../components/map/OutageDetail';
-import { LiveMapCanvas } from '../components/map/LiveMapCanvas';
+import { MapTopBar } from '@/components/map/MapTopBar';
+import { MapLegend } from '@/components/map/MapLegend';
+import { OutageList } from '@/components/map/OutageList';
+import { OutageDetail } from '@/components/map/OutageDetail';
+import { LiveMapCanvas } from '@/components/map/LiveMapCanvas';
 import {
   outagePoints,
   predictedZones,
@@ -13,7 +13,7 @@ import {
   type OutagePoint,
   type OutageState,
   type PredictedZone } from
-'../data/outages';
+'@/data/outages';
 
 interface LiveMapProps {
   /** Operator adds dispatch and status controls to each fault. */
