@@ -32,13 +32,21 @@ interface StreetGlowProps {
   /** Map space hidden behind overlaid content, in px. */
   padding: { top?: number; bottom?: number; left?: number; right?: number };
   reducedMotion: boolean;
+  /** Starting zoom; lower shows more of town. */
+  zoom?: number;
+  /** Show the white "You" marker at home. */
+  showHome?: boolean;
+  /** How far from home to light buildings, in metres. */
+  reach?: number;
+  /** Name tags over affected areas. */
+  labels?: boolean;
 }
 
 /**
  * The citizen's neighbourhood at night: every real building lit, dark or
  * flickering according to the live incidents around it.
  */
-export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: StreetGlowProps) {
+export function StreetGlow({ home, incidents, dots, padding, reducedMotion, zoom = 14.9, showHome = true, reach = 2800, labels = true }: StreetGlowProps) {
   const mapRef = useRef<MapRef>(null);
   const [loaded, setLoaded] = useState(false);
   const [beforeId, setBeforeId] = useState<string>();
@@ -50,8 +58,8 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
 
   // Only the incidents near home shape the glow; their state is live.
   const nearby = useMemo(
-    () => incidents.filter((i) => quickMeters(i.lng, i.lat, home.lng, home.lat) < 2600),
-    [incidents, home],
+    () => incidents.filter((i) => quickMeters(i.lng, i.lat, home.lng, home.lat) < reach - 200),
+    [incidents, home, reach],
   );
   const glowKey = nearby.map((i) => `${i.id}:${glowFor(i)}`).join('|');
 
@@ -60,7 +68,7 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
     const features: GeoJSON.Feature[] = [];
     for (let k = 0; k < flat.length; k += 2) {
       const [lng, lat] = [flat[k], flat[k + 1]];
-      if (quickMeters(lng, lat, home.lng, home.lat) > 2800) continue;
+      if (quickMeters(lng, lat, home.lng, home.lat) > reach) continue;
       let g: Glow = 'on';
       for (const i of nearby) {
         if (quickMeters(lng, lat, i.lng, i.lat) < i.radius * 1.5) {
@@ -73,7 +81,7 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
     return { type: 'FeatureCollection', features };
     // glowKey captures every change that matters in `nearby`
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flat, glowKey, home]);
+  }, [flat, glowKey, home, reach]);
 
   const dotData = useMemo<GeoJSON.FeatureCollection>(
     () => ({
@@ -127,13 +135,13 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
     return () => window.clearTimeout(timer);
   }, [loaded, buildings, reducedMotion]);
 
-  const callouts = nearby.filter((i) => i.status !== 'restored' || quickMeters(i.lng, i.lat, home.lng, home.lat) < 1200);
+  const callouts = !labels ? [] : nearby.filter((i) => i.status !== 'restored' || quickMeters(i.lng, i.lat, home.lng, home.lat) < 1200);
 
   return (
     <Map
       ref={mapRef}
       mapStyle="https://tiles.openfreemap.org/styles/dark"
-      initialViewState={{ longitude: home.lng, latitude: home.lat, zoom: 14.9, pitch: 52, bearing: -18 }}
+      initialViewState={{ longitude: home.lng, latitude: home.lat, zoom, pitch: 52, bearing: -18 }}
       maxBounds={NSUKKA_BOUNDS}
       interactive={false}
       attributionControl={false}
@@ -228,6 +236,7 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
         </Marker>
       ))}
 
+      {showHome && (
       <Marker longitude={home.lng} latitude={home.lat} anchor="center" style={{ zIndex: 10 }}>
         <span className="relative flex items-center gap-2">
           <span className="relative flex h-5 w-5 items-center justify-center">
@@ -237,6 +246,7 @@ export function StreetGlow({ home, incidents, dots, padding, reducedMotion }: St
           <span className="rounded-full bg-white px-2 py-0.5 font-body text-[11px] font-bold text-[#111113]">You</span>
         </span>
       </Marker>
+      )}
     </Map>
   );
 }

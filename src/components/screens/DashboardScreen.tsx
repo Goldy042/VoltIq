@@ -20,7 +20,6 @@ import { useOutageFeed } from '@/hooks/useOutageFeed';
 import {
   areaById,
   bandHours,
-  citizenProfile,
   hourlyOutlook,
   issueMeta,
   myReports,
@@ -30,6 +29,8 @@ import {
   type Incident,
 } from '@/data/nsukka';
 import { distanceMeters, formatAgo } from '@/lib/geo';
+import { describeLocation } from '@/lib/address';
+import { placeName, useProfile } from '@/lib/profile';
 
 const StreetGlow = dynamic(() => import('@/components/dashboard/StreetGlow').then((m) => m.StreetGlow), {
   ssr: false,
@@ -51,7 +52,6 @@ function statusWord(i?: Incident) {
   return { word: 'Unstable', color: '#ff9a3d' };
 }
 
-const home = { lat: citizenProfile.lat, lng: citizenProfile.lng };
 
 export function DashboardScreen() {
   const toast = useToast();
@@ -64,12 +64,14 @@ export function DashboardScreen() {
   const [panelWidth, setPanelWidth] = useState(520);
   const heroRef = useRef<HTMLElement>(null);
 
-  const area = areaById[citizenProfile.areaId];
-  const mine = incidents.find((i) => i.areaId === citizenProfile.areaId && i.status !== 'restored');
+  const { profile, primary } = useProfile();
+  const home = useMemo(() => ({ lat: primary.lat, lng: primary.lng }), [primary.lat, primary.lng]);
+  const area = areaById[primary.areaId];
+  const mine = incidents.find((i) => i.areaId === primary.areaId && i.status !== 'restored');
   const crew = mine?.crewId ? crews.find((c) => c.id === mine.crewId) : undefined;
-  const forecast = predictions.find((p) => p.areaId === citizenProfile.areaId);
+  const forecast = predictions.find((p) => p.areaId === primary.areaId || p.area.includes(area.name));
   const status = statusWord(mine);
-  const first = citizenProfile.name.split(' ')[0];
+  const first = profile.name.split(' ')[0];
 
   const nearby = useMemo(
     () =>
@@ -79,7 +81,7 @@ export function DashboardScreen() {
         .filter((x) => x.meters < 3500)
         .sort((a, b) => a.meters - b.meters)
         .slice(0, 4),
-    [incidents, mine?.id],
+    [incidents, mine?.id, home],
   );
 
   // Time-of-day greeting is computed on the client so it matches the reader's clock.
@@ -137,7 +139,7 @@ export function DashboardScreen() {
                 <span className="animate-pulse-ring absolute inset-0 rounded-full" style={{ backgroundColor: status.color }} />
                 <span className="relative h-2 w-2 rounded-full" style={{ backgroundColor: status.color }} />
               </span>
-              {greeting}, {first} · {citizenProfile.address}
+              {greeting}, {first} · {placeName(primary)}, {describeLocation(primary).summary}
             </motion.p>
 
             <motion.h1
@@ -185,7 +187,7 @@ export function DashboardScreen() {
                   whileTap={{ scale: 0.97 }}
                   onClick={countMe}
                   disabled={counted}
-                  className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-white px-6 font-body text-base font-semibold text-[#111113] disabled:bg-white/15 disabled:text-white"
+                  className="inline-flex h-14 sm:flex-1 items-center justify-center gap-2 rounded-full bg-white px-6 font-body text-base font-semibold text-[#111113] disabled:bg-white/15 disabled:text-white"
                 >
                   {counted && <CheckIcon className="h-5 w-5" aria-hidden="true" />}
                   {counted ? 'You’re counted' : 'I have this too'}
@@ -193,7 +195,7 @@ export function DashboardScreen() {
               )}
               <Link
                 href="/report"
-                className="inline-flex h-14 flex-1 items-center justify-center gap-2 rounded-full border border-white/20 px-6 font-body text-base font-semibold text-white transition-colors hover:bg-white/10"
+                className="inline-flex h-14 sm:flex-1 items-center justify-center gap-2 rounded-full border border-white/20 px-6 font-body text-base font-semibold text-white transition-colors hover:bg-white/10"
               >
                 <PlusIcon className="h-5 w-5" aria-hidden="true" />
                 {mine ? 'Something else' : 'Report a problem'}

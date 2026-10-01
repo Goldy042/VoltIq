@@ -17,10 +17,11 @@ import { IssueIcon } from '@/components/ui/Badges';
 import { useToast } from '@/components/ui/Toast';
 import { useOutageFeed } from '@/hooks/useOutageFeed';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { describeLocation } from '@/lib/address';
+import { placeName, useProfile } from '@/lib/profile';
 import {
   NSUKKA_BOUNDS,
   areaById,
-  citizenProfile,
   issueMeta,
   predictions,
   type Incident,
@@ -38,6 +39,7 @@ const severity = (i: Incident) =>
 
 export function MapScreen({ view, initialFocus }: MapScreenProps) {
   const toast = useToast();
+  const { primary } = useProfile();
   const desktop = useMediaQuery('(min-width: 1024px)');
   const { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew } = useOutageFeed();
 
@@ -48,7 +50,7 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
   const [snap, setSnap] = useState<SheetSnap>('peek');
   const [sheetPx, setSheetPx] = useState(168);
   const [user, setUser] = useState<{ lat: number; lng: number } | null>(
-    view === 'citizen' ? { lat: citizenProfile.lat, lng: citizenProfile.lng } : null,
+    view === 'citizen' ? { lat: primary.lat, lng: primary.lng } : null,
   );
   const [affected, setAffected] = useState<string[]>([]);
 
@@ -124,10 +126,10 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
 
   const locate = () => {
     const fallback = () => {
-      const home = { lat: citizenProfile.lat, lng: citizenProfile.lng };
+      const home = { lat: primary.lat, lng: primary.lng };
       setUser(home);
       setFlyTo({ ...home, zoom: 15.5, key: Date.now() });
-      toast({ title: 'Showing your saved address', body: citizenProfile.address, icon: <LocateFixedIcon className="h-4 w-4" />, color: 'var(--accent)' });
+      toast({ title: `Showing your ${placeName(primary).toLowerCase()}`, body: describeLocation(primary).summary, icon: <LocateFixedIcon className="h-4 w-4" />, color: 'var(--accent)' });
     };
     if (!navigator.geolocation) return fallback();
     navigator.geolocation.getCurrentPosition(

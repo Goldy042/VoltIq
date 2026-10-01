@@ -12,13 +12,13 @@ import { TextArea } from '@/components/ui/TextArea';
 import { IssueIcon } from '@/components/ui/Badges';
 import {
   NSUKKA_BOUNDS,
-  citizenProfile,
   incidents,
   issueMeta,
   nearestArea,
   type IssueType,
 } from '@/data/nsukka';
 import { distanceMeters } from '@/lib/geo';
+import { useProfile } from '@/lib/profile';
 
 type Step = 0 | 1 | 2 | 3;
 
@@ -35,7 +35,8 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
   const [direction, setDirection] = useState(1);
   const [issue, setIssue] = useState<IssueType | null>(initialIssue ?? null);
   const [issueError, setIssueError] = useState<string>();
-  const [pos, setPos] = useState({ lat: citizenProfile.lat, lng: citizenProfile.lng });
+  const { primary } = useProfile();
+  const [pos, setPos] = useState({ lat: primary.lat, lng: primary.lng });
   const [recenter, setRecenter] = useState(0);
   const [locating, setLocating] = useState(false);
   const [landmark, setLandmark] = useState('');

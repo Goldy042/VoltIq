@@ -22,7 +22,7 @@ const actions = [
   {
     href: '/signup',
     verb: 'Hear first',
-    detail: 'Pick your area and get an SMS when the AI expects your light to go.',
+    detail: 'Pick your area and get an alert when the AI expects your light to go.',
   },
 ];
 

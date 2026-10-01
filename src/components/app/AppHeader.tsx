@@ -7,7 +7,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BellIcon, CheckCircle2Icon, MessageSquareIcon, SparklesIcon } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/components/ui/cn';
-import { alerts, citizenProfile, type Alert } from '@/data/nsukka';
+import { alerts, type Alert } from '@/data/nsukka';
+import { useProfile } from '@/lib/profile';
 
 const nav = [
   { href: '/dashboard', label: 'Home' },
@@ -29,7 +30,8 @@ export function AppHeader({ tone = 'day' }: { tone?: 'day' | 'night' }) {
   const [read, setRead] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const unread = read ? 0 : alerts.filter((a) => a.unread).length;
-  const initials = citizenProfile.name.split(' ').map((p) => p[0]).join('');
+  const { profile } = useProfile();
+  const initials = profile.name.split(' ').map((p) => p[0]).slice(0, 2).join('');
 
   useEffect(() => {
     if (!open) return;
@@ -105,15 +107,17 @@ export function AppHeader({ tone = 'day' }: { tone?: 'day' | 'night' }) {
               </span>
             )}
           </motion.button>
-          <span
+          <Link
+            href="/profile"
             className={cn(
-              'flex h-11 w-11 items-center justify-center rounded-full font-body text-sm font-semibold transition-colors',
+              'flex h-11 w-11 items-center justify-center rounded-full font-body text-sm font-semibold transition-[colors,transform] active:scale-95',
               night ? 'bg-white text-[#111113]' : 'bg-ink text-canvas',
+              pathname === '/profile' && 'ring-2 ring-accent ring-offset-2 ring-offset-canvas',
             )}
-            aria-label={citizenProfile.name}
+            aria-label={`Your profile, ${profile.name}`}
           >
             {initials}
-          </span>
+          </Link>
 
           <AnimatePresence>
             {open && (

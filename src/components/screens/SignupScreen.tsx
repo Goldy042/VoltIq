@@ -1,76 +1,145 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { LocateFixedIcon, MailIcon, PhoneIcon, UserIcon } from 'lucide-react';
+import { ArrowLeftIcon, MailIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
 import { AuthShell } from '@/components/auth/AuthShell';
-import { TextField } from '@/components/ui/TextField';
-import { Select } from '@/components/ui/Select';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/components/ui/cn';
-import { NSUKKA_BOUNDS, areas, nearestArea } from '@/data/nsukka';
+import { OtpInput } from '@/components/ui/OtpInput';
+import { PasswordField } from '@/components/ui/PasswordField';
+import { PhoneField, isNigerianMobile } from '@/components/ui/PhoneField';
+import { TextField } from '@/components/ui/TextField';
+import { useProfile } from '@/lib/profile';
 
 interface Form {
   name: string;
-  phone: string;
   email: string;
+  phone: string;
   password: string;
-  area: string;
-  address: string;
 }
 
+const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+const pretty = (d: string) => (d ? `+234 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.slice(6)}` : '');
+
+/**
+ * Account basics, then an email check. Email is free to send, so it carries
+ * verification and alerts; a phone number is optional, for crews to call.
+ * One verified email per reporter is the first line of defence against fake reports.
+ */
 export function SignupScreen() {
   const router = useRouter();
-  const [form, setForm] = useState<Form>({ name: '', phone: '', email: '', password: '', area: '', address: '' });
-  const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
-  const [sms, setSms] = useState(true);
-  const [locating, setLocating] = useState(false);
+  const { startNew } = useProfile();
+  const [stage, setStage] = useState<'details' | 'verify'>('details');
+  const [form, setForm] = useState<Form>({ name: '', email: '', phone: '', password: '' });
+  const [errors, setErrors] = useState<Partial<Record<keyof Form | 'code', string>>>({});
+  const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
-  const set = (key: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((f) => ({ ...f, [key]: e.target.value }));
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = window.setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [resendIn]);
+
+  const set = <K extends keyof Form>(key: K) => (value: Form[K]) => {
+    setForm((f) => ({ ...f, [key]: value }));
     setErrors((er) => ({ ...er, [key]: undefined }));
   };
 
-  const locate = () => {
-    if (!navigator.geolocation) return;
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLocating(false);
-        const [w, s, e, n] = NSUKKA_BOUNDS;
-        if (coords.longitude < w || coords.longitude > e || coords.latitude < s || coords.latitude > n) {
-          setErrors((er) => ({ ...er, area: 'You seem to be outside Nsukka — choose your area from the list.' }));
-          return;
-        }
-        const a = nearestArea({ lat: coords.latitude, lng: coords.longitude });
-        setForm((f) => ({ ...f, area: a.id }));
-      },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 6000 },
-    );
-  };
-
-  const submit = (e: React.FormEvent) => {
+  const submitDetails = (e: React.FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
-    if (form.name.trim().length < 2) next.name = 'Enter your name.';
-    if (form.phone.replace(/\D/g, '').length < 10) next.phone = 'Enter a Nigerian mobile number, e.g. 0803 000 0000.';
-    if (!form.email.includes('@')) next.email = 'Enter a valid email address.';
+    if (form.name.trim().length < 2) next.name = 'Enter your name as people know you.';
+    if (!isEmail(form.email)) next.email = 'Enter a valid email, e.g. you@example.com.';
+    if (form.phone && !isNigerianMobile(form.phone)) next.phone = 'Enter the 10 digits after +234, or leave it empty.';
     if (form.password.length < 6) next.password = 'Use at least 6 characters.';
-    if (!form.area) next.area = 'Choose the area you live in.';
     setErrors(next);
     if (Object.keys(next).length) return;
     setPending(true);
-    window.setTimeout(() => router.push('/dashboard'), 700);
+    window.setTimeout(() => {
+      setPending(false);
+      setCode('');
+      setResendIn(30);
+      setStage('verify');
+    }, 500);
   };
+
+  const verify = (value = code) => {
+    if (value.length < 6) {
+      setErrors({ code: 'Enter all 6 digits.' });
+      return;
+    }
+    setPending(true);
+    startNew({ name: form.name.trim(), email: form.email.trim(), phone: pretty(form.phone) });
+    window.setTimeout(() => router.push('/onboarding'), 600);
+  };
+
+  if (stage === 'verify') {
+    return (
+      <AuthShell
+        stepKey="verify"
+        title="Check your email"
+        intro={
+          <>
+            We sent a 6-digit code to <span className="font-semibold text-ink">{form.email.trim()}</span>.
+          </>
+        }
+      >
+        <button
+          type="button"
+          onClick={() => setStage('details')}
+          className="-ml-2 mb-6 inline-flex h-9 items-center gap-1 rounded-full px-2 font-body text-sm font-medium text-ink-muted hover:bg-sunken hover:text-ink"
+        >
+          <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
+          Change email
+        </button>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            verify();
+          }}
+          noValidate
+          className="space-y-6"
+        >
+          <OtpInput
+            label="6-digit code"
+            hint="Check your spam folder if it isn’t there in a minute. Demo: any 6 digits work."
+            value={code}
+            error={errors.code}
+            onChange={(c) => {
+              setCode(c);
+              setErrors({});
+            }}
+            onComplete={verify}
+          />
+          <Button type="submit" size="lg" full loading={pending}>
+            {pending ? 'Verifying…' : 'Verify and continue'}
+          </Button>
+          <p className="text-center font-body text-sm text-ink-muted">
+            {resendIn > 0 ? (
+              <>Resend code in 0:{String(resendIn).padStart(2, '0')}</>
+            ) : (
+              <button type="button" onClick={() => setResendIn(30)} className="font-semibold text-accent hover:underline">
+                Resend code
+              </button>
+            )}
+          </p>
+          <p className="flex items-start gap-2 rounded-md bg-canvas p-3 font-body text-xs leading-snug text-ink-muted">
+            <ShieldCheckIcon className="mt-px h-4 w-4 shrink-0 text-status-restored" aria-hidden="true" />
+            One verified account per person keeps reports honest, so EEDC can trust what the map shows.
+          </p>
+        </form>
+      </AuthShell>
+    );
+  }
 
   return (
     <AuthShell
+      stepKey="details"
       title="Join your street"
-      intro="Report outages in seconds and get warned before the light goes in your area."
+      intro="Report outages in seconds and hear first when the light is about to go."
       footer={
         <p>
           Already have an account?{' '}
@@ -80,104 +149,61 @@ export function SignupScreen() {
         </p>
       }
     >
-      <form onSubmit={submit} noValidate className="space-y-6">
+      <form onSubmit={submitDetails} noValidate className="space-y-5">
         <TextField
           label="Full name"
-          hint="Shown only to EEDC, never on the public map."
+          hint="Only EEDC sees this, never the public map."
           placeholder="e.g. Chiamaka Nnaji"
           autoComplete="name"
           leading={<UserIcon className="h-5 w-5" />}
           value={form.name}
           error={errors.name}
-          onChange={set('name')}
-        />
-        <TextField
-          label="Phone number"
-          hint="We send outage warnings here by SMS."
-          placeholder="0803 000 0000"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          leading={<PhoneIcon className="h-5 w-5" />}
-          value={form.phone}
-          error={errors.phone}
-          onChange={set('phone')}
+          onChange={(e) => set('name')(e.target.value)}
         />
         <TextField
           label="Email"
-          hint="For your account and repair updates."
+          hint="We’ll send a code to check it’s yours, then outage alerts."
           placeholder="you@example.com"
           type="email"
+          inputMode="email"
           autoComplete="email"
           leading={<MailIcon className="h-5 w-5" />}
           value={form.email}
           error={errors.email}
-          onChange={set('email')}
+          onChange={(e) => set('email')(e.target.value)}
         />
-        <TextField
+        <PasswordField
           label="Password"
-          hint="At least 6 characters."
+          hint="At least 6 characters. Mixing letters and numbers makes it stronger."
           placeholder="Create a password"
-          type="password"
           autoComplete="new-password"
           value={form.password}
           error={errors.password}
           onChange={set('password')}
+          meter
         />
-        <div>
-          <Select
-            label="Your area"
-            hint="Forecasts and alerts are sent per area and feeder."
-            placeholder="Choose your area in Nsukka"
-            options={areas.map((a) => ({ value: a.id, label: a.name }))}
-            value={form.area}
-            error={errors.area}
-            onChange={set('area')}
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            className="mt-1 -ml-3"
-            loading={locating}
-            onClick={locate}
-            leading={<LocateFixedIcon className="h-4 w-4" aria-hidden="true" />}
-          >
-            Detect from my location
-          </Button>
-        </div>
-        <TextField
-          label="Street or landmark"
-          hint="Helps place your reports accurately. Never shown publicly."
-          placeholder="e.g. Odim Street, near the junction"
-          autoComplete="street-address"
-          value={form.address}
-          onChange={set('address')}
+        <PhoneField
+          label="Phone number"
+          hint="Only so an EEDC crew can call if they can’t find your gate."
+          value={form.phone}
+          error={errors.phone}
+          onChange={set('phone')}
           optional
         />
-
-        <button
-          type="button"
-          role="switch"
-          aria-checked={sms}
-          onClick={() => setSms((s) => !s)}
-          className="flex w-full items-center justify-between gap-4 rounded-lg bg-canvas p-4 text-left"
-        >
-          <span>
-            <span className="block font-body text-sm font-semibold text-ink">SMS outage warnings</span>
-            <span className="mt-0.5 block font-body text-xs text-ink-muted">Get a text when the AI expects your light to go.</span>
-          </span>
-          <span className={cn('relative h-7 w-12 shrink-0 rounded-full transition-colors', sms ? 'bg-status-restored' : 'bg-line-strong')}>
-            <motion.span
-              className="absolute top-0.5 h-6 w-6 rounded-full bg-white shadow-card"
-              animate={{ left: sms ? 22 : 2 }}
-              transition={{ type: 'spring', stiffness: 600, damping: 34 }}
-            />
-          </span>
-        </button>
-
         <Button type="submit" size="lg" full loading={pending}>
-          {pending ? 'Creating account…' : 'Create account'}
+          {pending ? 'Sending code…' : 'Continue'}
         </Button>
+        <p className="text-center font-body text-xs leading-snug text-ink-faint">
+          By continuing you agree to the{' '}
+          <a href="#terms" className="underline underline-offset-2 hover:text-ink">
+            terms
+          </a>{' '}
+          and{' '}
+          <a href="#privacy" className="underline underline-offset-2 hover:text-ink">
+            privacy policy
+          </a>
+          . Next we’ll check your email, then save your places.
+        </p>
       </form>
     </AuthShell>
   );

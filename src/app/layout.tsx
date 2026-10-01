@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans, Schibsted_Grotesk } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/Toast';
+import { ProfileProvider } from '@/lib/profile';
 import './globals.css';
 
 // Self-hosted through next/font so there is no render-blocking request to
@@ -45,7 +46,9 @@ export default function RootLayout({
     >
       {/* Browser extensions (e.g. Grammarly) add attributes to <html>/<body> before hydration. */}
       <body suppressHydrationWarning className="min-h-full w-full bg-canvas font-body text-ink">
-        <ToastProvider>{children}</ToastProvider>
+        <ProfileProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </ProfileProvider>
       </body>
     </html>
   );
