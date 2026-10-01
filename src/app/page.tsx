@@ -1,12 +1,5 @@
-// app/page.tsx
-import { Landing } from '@/components/Landing';
+import { Landing } from '@/components/landing/Landing';
 
-export default async function Page({
-  searchParams,
-}: {
-  searchParams: Promise<{ audience?: string }>;
-}) {
-  const params = await searchParams;
-  const audience = params.audience === 'utilities' ? 'utilities' : 'citizens';
-  return <Landing audience={audience} />;
+export default function Page() {
+  return <Landing />;
 }

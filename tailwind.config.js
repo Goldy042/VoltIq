@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
-// Token map copied verbatim from vite-ui/tailwind.config.js — every utility
-// resolves to a CSS custom property declared in src/app/globals.css, so light
-// and dark themes are a variable swap rather than a second set of classes.
+// Every utility resolves to a CSS custom property declared in
+// src/app/globals.css, so light and dark themes are a variable swap rather
+// than a second set of classes.
 export default {
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
@@ -25,10 +25,12 @@ export default {
           tint: 'var(--accent-tint)',
           on: 'var(--on-accent)',
         },
+        volt: 'var(--volt)',
         status: {
-          stable: 'var(--status-stable)',
-          reported: 'var(--status-reported)',
-          critical: 'var(--status-critical)',
+          out: 'var(--status-out)',
+          low: 'var(--status-low)',
+          crew: 'var(--status-crew)',
+          restored: 'var(--status-restored)',
           predicted: 'var(--status-predicted)',
         },
       },
@@ -62,6 +64,16 @@ export default {
         sm: 'var(--radius-sm)',
         md: 'var(--radius-md)',
         lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        full: '9999px',
+      },
+      boxShadow: {
+        card: 'var(--shadow-card)',
+        float: 'var(--shadow-float)',
+        pin: 'var(--shadow-pin)',
+      },
+      transitionTimingFunction: {
+        out: 'var(--ease-out)',
       },
       spacing: {
         1: 'var(--space-1)',

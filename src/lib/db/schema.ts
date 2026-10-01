@@ -30,6 +30,13 @@ export const reportStatusEnum = pgEnum("report_status", [
   "false_report",
 ]);
 
+// What the citizen is experiencing — dim and unstable supply is tracked, not just outages
+export const issueTypeEnum = pgEnum("issue_type", [
+  "no_power",
+  "low_voltage",
+  "fluctuating",
+]);
+
 export const predictionStatusEnum = pgEnum("prediction_status", [
   "active",
   "confirmed",
@@ -131,6 +138,9 @@ export const outageReports = pgTable(
     areaId: uuid("area_id").references(() => areas.id),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
+    issueType: issueTypeEnum("issue_type").default("no_power").notNull(),
+    // Reading from the resident's stabiliser or meter display, when they have one
+    voltageReading: integer("voltage_reading"),
     description: text("description"),
     photoUrl: text("photo_url"),
     status: reportStatusEnum("status").default("reported").notNull(),

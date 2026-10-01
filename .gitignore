@@ -36,3 +36,6 @@ yarn-error.log*
 .vscode/*
 !.vscode/extensions.json
 .env*
+
+# copied from node_modules by scripts/copy-maplibre-worker.mjs
+/public/maplibre

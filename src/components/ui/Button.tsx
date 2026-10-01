@@ -1,38 +1,98 @@
-import React from 'react';
+'use client';
 
-type Variant = 'primary' | 'secondary' | 'quiet';
+import React from 'react';
+import Link from 'next/link';
+import { motion, type HTMLMotionProps } from 'framer-motion';
+import { cn } from './cn';
+
+type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
+type Size = 'sm' | 'md' | 'lg';
 
 const base =
-'inline-flex items-center justify-center gap-2 font-body text-sm font-medium transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:cursor-not-allowed disabled:opacity-50';
+  'relative inline-flex select-none items-center justify-center gap-2 whitespace-nowrap rounded-full font-body font-medium transition-colors duration-150 ease-out disabled:pointer-events-none disabled:opacity-45';
 
 const variants: Record<Variant, string> = {
-  primary:
-  'border border-ink bg-ink text-canvas hover:border-accent hover:bg-accent hover:text-accent-on',
-  secondary: 'border border-line-strong text-ink hover:border-ink',
-  quiet: 'border border-transparent text-ink-muted hover:text-ink'
+  primary: 'bg-ink text-canvas hover:opacity-85',
+  secondary: 'border border-line-strong bg-surface text-ink hover:border-ink',
+  ghost: 'text-ink-muted hover:bg-sunken hover:text-ink',
+  danger: 'bg-status-out text-white hover:opacity-90',
 };
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+const sizes: Record<Size, string> = {
+  sm: 'h-9 px-4 text-sm',
+  md: 'h-11 px-5 text-sm',
+  lg: 'h-14 px-6 text-base',
+};
+
+interface SharedProps {
   variant?: Variant;
-  size?: 'md' | 'lg';
+  size?: Size;
   full?: boolean;
+  leading?: React.ReactNode;
+  trailing?: React.ReactNode;
+}
+
+export function buttonClass({ variant = 'primary', size = 'md', full = false }: SharedProps = {}) {
+  return cn(base, variants[variant], sizes[size], full && 'w-full');
+}
+
+interface ButtonProps extends SharedProps, Omit<HTMLMotionProps<'button'>, 'children'> {
+  loading?: boolean;
+  children: React.ReactNode;
 }
 
 export function Button({
-  variant = 'primary',
-  size = 'md',
-  full = false,
-  className = '',
+  variant,
+  size,
+  full,
+  leading,
+  trailing,
+  loading = false,
+  className,
   type = 'button',
+  disabled,
+  children,
   ...props
 }: ButtonProps) {
-  const sizing = size === 'lg' ? 'px-6 py-4 text-base' : 'px-5 py-3';
   return (
-    <button
+    <motion.button
       type={type}
-      className={`${base} ${variants[variant]} ${sizing} ${full ? 'w-full' : ''} ${className}`}
-      style={{ borderRadius: 'var(--radius-sm)' }}
-      {...props} />);
+      whileTap={{ scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 600, damping: 30 }}
+      disabled={disabled || loading}
+      aria-busy={loading || undefined}
+      className={cn(buttonClass({ variant, size, full }), className)}
+      {...props}
+    >
+      {loading ? <Spinner /> : leading}
+      {children}
+      {!loading && trailing}
+    </motion.button>
+  );
+}
 
+interface ButtonLinkProps extends SharedProps {
+  href: string;
+  className?: string;
+  children: React.ReactNode;
+}
 
+/** A Next.js link that looks exactly like a Button. */
+export function ButtonLink({ href, variant, size, full, leading, trailing, className, children }: ButtonLinkProps) {
+  return (
+    <Link href={href} className={cn(buttonClass({ variant, size, full }), 'group active:scale-[0.97]', className)}>
+      {leading}
+      {children}
+      {trailing}
+    </Link>
+  );
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={cn('h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent', className)}
+    />
+  );
 }

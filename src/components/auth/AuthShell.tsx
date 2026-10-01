@@ -1,55 +1,55 @@
+'use client';
+
 import React from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Logo } from '@/components/ui/Logo';
+import { MapCanvas } from '@/components/map';
+import { incidents, predictions } from '@/data/nsukka';
 
 interface AuthShellProps {
-  eyebrow: string;
   title: string;
   intro: string;
   children: React.ReactNode;
   footer: React.ReactNode;
 }
 
-/** Asymmetric auth layout: narrow editorial rail on the left, form off-centre right. */
-export function AuthShell({ eyebrow, title, intro, children, footer }: AuthShellProps) {
+/** Form on the left; on desktop, the live Nsukka map fills the right. */
+export function AuthShell({ title, intro, children, footer }: AuthShellProps) {
   return (
-    <div className="min-h-screen w-full bg-canvas">
-      <div className="mx-auto w-full max-w-[1440px] px-6 md:px-10">
-        <header className="flex items-center justify-between border-b border-line py-4">
-          <Link
-            href="/"
-            className="font-display text-lg font-semibold tracking-tight text-ink transition-colors duration-150 ease-out hover:text-accent">
-            
-            Gridpulse<span className="text-accent">.</span>
-          </Link>
-          <Link
-            href="/"
-            className="font-body text-sm text-ink-muted transition-colors duration-150 ease-out hover:text-ink">
-            
-            Back to site
+    <div className="min-h-dvh bg-surface lg:grid lg:grid-cols-[minmax(0,560px)_1fr]">
+      <div className="flex min-h-dvh flex-col px-5 pb-[max(env(safe-area-inset-bottom),24px)] pt-[max(env(safe-area-inset-top),16px)] sm:px-10">
+        <header className="flex h-12 items-center justify-between">
+          <Logo />
+          <Link href="/map" className="font-body text-sm font-medium text-ink-muted transition-colors hover:text-ink">
+            View live map
           </Link>
         </header>
 
-        <div className="grid grid-cols-1 gap-12 pb-16 pt-12 lg:grid-cols-12 lg:gap-8 lg:pt-24">
-          <div className="lg:col-span-4">
-            <p className="font-body text-2xs uppercase tracking-wide text-ink-faint">
-              {eyebrow}
-            </p>
-            <h1 className="mt-6 max-w-[14ch] font-display text-3xl font-semibold leading-tight tracking-tight text-ink md:text-4xl">
-              {title}
-            </h1>
-            <p className="mt-6 max-w-[40ch] font-body text-base leading-body text-ink-muted">
-              {intro}
-            </p>
-          </div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
+          className="mx-auto w-full max-w-md flex-1 py-10 lg:py-16"
+        >
+          <h1 className="font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">{title}</h1>
+          <p className="mt-2 font-body text-base leading-body text-ink-muted">{intro}</p>
+          <div className="mt-8">{children}</div>
+          <div className="mt-8 font-body text-sm text-ink-muted">{footer}</div>
+        </motion.div>
+      </div>
 
-          <div className="lg:col-span-5 lg:col-start-7">
-            {children}
-            <div className="mt-10 border-t border-line pt-6 font-body text-sm text-ink-muted">
-              {footer}
-            </div>
+      <div className="relative hidden p-3 lg:block">
+        <div className="sticky top-3 h-[calc(100dvh-24px)] overflow-hidden rounded-xl bg-sunken">
+          <MapCanvas interactive={false} incidents={incidents} predictions={predictions} initialZoom={13.4} />
+          <div className="absolute bottom-5 left-5 right-5 max-w-sm rounded-lg bg-surface p-4 shadow-float">
+            <p className="font-display text-base font-bold text-ink">Nsukka, live</p>
+            <p className="mt-1 font-body text-sm text-ink-muted">
+              Every pin is neighbours reporting no light or low voltage. Purple zones are where the AI expects trouble next.
+            </p>
           </div>
         </div>
       </div>
-    </div>);
-
+    </div>
+  );
 }

@@ -6,29 +6,32 @@
 /* END TAILWIND DIRECTIVES — ALL OTHER CSS MUST GO BELOW THIS LINE */
 
 /* Fonts are self-hosted through next/font in src/app/layout.tsx, which assigns
-   --font-schibsted and --font-plex. Leaflet's stylesheets are imported from the
-   client map components so they are only fetched on routes that draw a map. */
+   --font-schibsted and --font-plex. MapLibre's stylesheet is imported from the
+   map component so it is only fetched on routes that draw a map. */
 
 :root {
-  /* ---- Neutral base (warm off-white) ---- */
-  --canvas: #f6f4f0;
-  --surface: #fbfaf8;
-  --surface-sunken: #efece6;
-  --ink: #16181c;
-  --ink-muted: #585d65;
-  --ink-faint: #8b9098;
-  --line: #ddd9d1;
-  --line-strong: #c6c1b7;
-  /* ---- Single quiet accent: ink-indigo ---- */
-  --accent: #2c4a86;
-  --accent-hover: #223a6b;
-  --accent-tint: #e5e8f0;
-  --on-accent: #fbfaf8;
-  /* ---- Outage severity scale (desaturated) ---- */
-  --status-stable: #5c7a68;
-  --status-reported: #9c7a36;
-  --status-critical: #9a463c;
-  --status-predicted: #5a5f8c;
+  /* ---- Neutral base ---- */
+  --canvas: #f3f3f0;
+  --surface: #ffffff;
+  --surface-sunken: #ebebe7;
+  --ink: #111113;
+  --ink-muted: #55575d;
+  --ink-faint: #73757c;
+  --line: #e3e3de;
+  --line-strong: #cbcbc4;
+  /* ---- Accent: used for focus, links and selection, never as decoration ---- */
+  --accent: #2457f5;
+  --accent-hover: #1a45d1;
+  --accent-tint: #e8eeff;
+  --on-accent: #ffffff;
+  /* ---- Brand spark: the bolt in the logo and nowhere else ---- */
+  --volt: #ffc21a;
+  /* ---- Supply status scale (saturated so pins read on a detailed map) ---- */
+  --status-out: #e5383b;
+  --status-low: #e0700a;
+  --status-crew: #2457f5;
+  --status-restored: #12945a;
+  --status-predicted: #7457ea;
   /* ---- Typography ---- */
   --font-display: var(--font-schibsted), 'Helvetica Neue', Arial, sans-serif;
   --font-body: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
@@ -40,14 +43,14 @@
   --text-xl: 1.375rem;
   --text-2xl: 1.75rem;
   --text-3xl: 2.25rem;
-  --text-4xl: 3rem;
-  --text-5xl: clamp(2.75rem, 6vw, 5.25rem);
-  --leading-tight: 0.96;
-  --leading-snug: 1.15;
+  --text-4xl: clamp(2.25rem, 5vw, 3rem);
+  --text-5xl: clamp(2.6rem, 7vw, 5rem);
+  --leading-tight: 1;
+  --leading-snug: 1.18;
   --leading-body: 1.55;
-  --tracking-tight: -0.03em;
+  --tracking-tight: -0.025em;
   --tracking-normal: 0em;
-  --tracking-wide: 0.16em;
+  --tracking-wide: 0.12em;
   /* ---- Spacing scale ---- */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -59,35 +62,40 @@
   --space-16: 4rem;
   --space-24: 6rem;
   --space-32: 8rem;
-  /* ---- Radius (minimal) ---- */
+  /* ---- Radius: soft, touch-friendly ---- */
   --radius-none: 0px;
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  /* ---- Borders instead of shadows ---- */
-  --border-hairline: 1px solid var(--line);
-  --border-strong: 1px solid var(--line-strong);
-  --border-ink: 1px solid var(--ink);
-  --border-accent: 1px solid var(--accent);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  /* ---- Elevation: floating controls over the map, no glow, no gradient ---- */
+  --shadow-card: 0 1px 2px rgb(17 17 19 / 0.05), 0 2px 8px rgb(17 17 19 / 0.04);
+  --shadow-float: 0 1px 3px rgb(17 17 19 / 0.08), 0 10px 28px rgb(17 17 19 / 0.12);
+  --shadow-pin: 0 1px 2px rgb(17 17 19 / 0.25), 0 4px 10px rgb(17 17 19 / 0.18);
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 [data-theme='dark'] {
-  --canvas: #111214;
-  --surface: #17191c;
-  --surface-sunken: #0d0e10;
-  --ink: #eceae5;
-  --ink-muted: #9b9fa6;
-  --ink-faint: #6d7178;
-  --line: #2a2d32;
-  --line-strong: #3b3f45;
-  --accent: #8fa8de;
-  --accent-hover: #a9bce8;
-  --accent-tint: #1b2130;
-  --on-accent: #111214;
-  --status-stable: #7d9c88;
-  --status-reported: #c0995a;
-  --status-critical: #c26a5e;
-  --status-predicted: #8388b8;
+  --canvas: #0c0c0e;
+  --surface: #17181b;
+  --surface-sunken: #111214;
+  --ink: #f2f2ef;
+  --ink-muted: #a3a5ab;
+  --ink-faint: #85878e;
+  --line: #26272b;
+  --line-strong: #393a40;
+  --accent: #7095ff;
+  --accent-hover: #8eabff;
+  --accent-tint: #18203a;
+  --on-accent: #0c0c0e;
+  --status-out: #ff5c5f;
+  --status-low: #ff9a3d;
+  --status-crew: #7095ff;
+  --status-restored: #3ccf8a;
+  --status-predicted: #a08bff;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.04);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.06), 0 10px 28px rgb(0 0 0 / 0.5);
 }
 
 html,
@@ -101,6 +109,7 @@ body {
   color: var(--ink);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -108,136 +117,73 @@ body {
   color: var(--ink);
 }
 
-@keyframes grid-pulse {
-  0%,
-  100% {
-    opacity: 0.22;
-    transform: scale(1);
-  }
-  45% {
-    opacity: 1;
-    transform: scale(1.5);
-  }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
-@keyframes sweep {
+/* Horizontal chip rails scroll without a visible bar on touch devices */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+@keyframes pulse-ring {
   0% {
-    left: -1%;
+    transform: scale(0.6);
+    opacity: 0.55;
   }
   100% {
-    left: 100%;
+    transform: scale(2.2);
+    opacity: 0;
   }
 }
 
-@keyframes zone-breathe {
+@keyframes flicker {
   0%,
   100% {
-    stroke-opacity: 0.5;
-    fill-opacity: 0.08;
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.35;
+  }
+  12% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 0.55;
   }
   50% {
-    stroke-opacity: 0.9;
-    fill-opacity: 0.16;
+    opacity: 1;
   }
 }
 
-/* ---- Leaflet chrome, restyled to the VoltIq system ---- */
-.leaflet-container {
-  background: var(--surface-sunken);
-  font-family: var(--font-body);
+.animate-pulse-ring {
+  animation: pulse-ring 2s var(--ease-out) infinite;
 }
-.gp-tiles {
-  filter: saturate(0.55) contrast(0.95);
-}
-[data-theme='dark'] .gp-tiles {
-  filter: saturate(0.4) brightness(0.85) contrast(1.05);
-}
-.leaflet-control-zoom {
-  border: 1px solid var(--line-strong) !important;
-  border-radius: var(--radius-sm) !important;
-  overflow: hidden;
+.animate-flicker {
+  animation: flicker 2.8s linear infinite;
 }
 
-.leaflet-control-zoom a {
-  background: var(--surface) !important;
-  color: var(--ink) !important;
-  border-bottom: 1px solid var(--line) !important;
-  font-weight: 400;
-}
-.leaflet-control-zoom a:hover {
-  background: var(--surface-sunken) !important;
-}
-.leaflet-control-attribution {
-  background: var(--surface) !important;
-  color: var(--ink-faint) !important;
-  border-top: 1px solid var(--line);
-  border-left: 1px solid var(--line);
+/* ---- MapLibre chrome, restyled to the VoltIq system ---- */
+.maplibregl-map {
   font-family: var(--font-body);
-  font-size: var(--text-2xs) !important;
 }
-.leaflet-control-attribution a {
+.maplibregl-ctrl-attrib {
+  background: rgb(255 255 255 / 0.8) !important;
+  font-size: 10px;
+  border-radius: var(--radius-sm) 0 0 0;
+}
+[data-theme='dark'] .maplibregl-ctrl-attrib {
+  background: rgb(0 0 0 / 0.6) !important;
+}
+.maplibregl-ctrl-attrib a {
   color: var(--ink-muted) !important;
 }
-.gp-zone {
-  stroke: var(--status-predicted);
-  fill: var(--status-predicted);
-  animation: zone-breathe 4s ease-in-out infinite;
-}
-
-/* ---- Markers ---- */
-.gp-marker,
-.gp-cluster {
-  background: none;
-  border: none;
-}
-.gp-pin {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-}
-.gp-pin-halo {
-  position: absolute;
-  inset: 0;
+.maplibregl-ctrl-attrib-button {
   border-radius: 999px;
-  background: var(--pin);
-  opacity: 0.16;
-}
-.gp-pin-critical .gp-pin-halo {
-  animation: grid-pulse 2.4s linear infinite;
-}
-
-.gp-pin-dot {
-  position: relative;
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: var(--pin);
-  border: 2px solid var(--surface);
-}
-.gp-pin-selected .gp-pin-dot {
-  width: 13px;
-  height: 13px;
-  border-color: var(--ink);
-}
-.gp-pin-count {
-  position: relative;
-  min-width: 22px;
-  height: 22px;
-  padding: 0 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  border: 1px solid var(--pin);
-  color: var(--pin);
-  font-family: var(--font-display);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
 }
 
 @media (prefers-reduced-motion: reduce) {
