@@ -1,7 +1,7 @@
 {
   "version": "8",
   "dialect": "postgres",
-  "id": "81a00329-e266-4313-8bd1-bd5826e4b19d",
+  "id": "1d06d2ab-9615-4479-a1f0-498562b17dfa",
   "prevIds": [
     "0762222f-e451-4576-a839-8bf8743eaedc"
   ],
@@ -70,16 +70,6 @@
         "technician"
       ],
       "name": "user_role",
-      "entityType": "enums",
-      "schema": "public"
-    },
-    {
-      "values": [
-        "ok",
-        "service_due",
-        "off_road"
-      ],
-      "name": "vehicle_status",
       "entityType": "enums",
       "schema": "public"
     },
@@ -1067,19 +1057,6 @@
       "table": "teams"
     },
     {
-      "type": "vehicle_status",
-      "typeSchema": "public",
-      "notNull": true,
-      "dimensions": 0,
-      "default": "'ok'",
-      "generated": null,
-      "identity": null,
-      "name": "vehicle_status",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "teams"
-    },
-    {
       "type": "boolean",
       "typeSchema": null,
       "notNull": true,
@@ -1283,19 +1260,6 @@
       "generated": null,
       "identity": null,
       "name": "on_shift",
-      "entityType": "columns",
-      "schema": "public",
-      "table": "users"
-    },
-    {
-      "type": "timestamp",
-      "typeSchema": null,
-      "notNull": false,
-      "dimensions": 0,
-      "default": null,
-      "generated": null,
-      "identity": null,
-      "name": "shift_started_at",
       "entityType": "columns",
       "schema": "public",
       "table": "users"

@@ -12,11 +12,11 @@ import { useOperations } from '@/lib/operations';
 import { useReportLog } from './ReportLog';
 
 const nav = [
-  { href: '/operator', label: 'Overview', icon: LayoutDashboardIcon },
-  { href: '/operator/map', label: 'Live map', icon: MapIcon },
-  { href: '/operator/reports', label: 'Reports', icon: InboxIcon },
-  { href: '/operator/teams', label: 'Teams', icon: UsersIcon },
-  { href: '/operator/staff', label: 'Roles & staff', icon: ShieldCheckIcon },
+  { href: '/operator', label: 'Overview', short: 'Overview', icon: LayoutDashboardIcon },
+  { href: '/operator/map', label: 'Live map', short: 'Map', icon: MapIcon },
+  { href: '/operator/reports', label: 'Reports', short: 'Reports', icon: InboxIcon },
+  { href: '/operator/teams', label: 'Teams', short: 'Teams', icon: UsersIcon },
+  { href: '/operator/staff', label: 'Roles & staff', short: 'Staff', icon: ShieldCheckIcon },
 ];
 
 export const initials = (name: string) =>
@@ -77,26 +77,34 @@ export function OperatorShell({ children }: { children: React.ReactNode }) {
           <Logo href="/operator" />
           <ActingAs compact />
         </div>
-        <nav aria-label="Operator" className="no-scrollbar flex gap-1 overflow-x-auto px-3 pb-2">
-          {links.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              aria-current={n.active ? 'page' : undefined}
-              className={cn(
-                'flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium',
-                n.active ? 'bg-ink text-canvas' : 'text-ink-muted hover:bg-sunken',
-              )}
-            >
-              <n.icon className="h-4 w-4" aria-hidden="true" />
-              {n.label}
-              {n.badge !== undefined && <span className="tabular-nums opacity-70">{n.badge}</span>}
-            </Link>
-          ))}
-        </nav>
       </header>
 
-      <main className={cn('min-h-0 min-w-0 flex-1', isMap ? 'relative overflow-hidden' : 'overflow-y-auto')}>{children}</main>
+      <main className={cn('min-h-0 min-w-0 flex-1', isMap ? 'relative overflow-hidden' : 'overflow-y-auto overflow-x-hidden')}>{children}</main>
+
+      {/* Phones: all five sections fit across the bottom, no sideways scrolling. */}
+      <nav aria-label="Operator" className="grid shrink-0 grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden">
+        {links.map((n) => (
+          <Link
+            key={n.href}
+            href={n.href}
+            aria-current={n.active ? 'page' : undefined}
+            className={cn(
+              'relative flex h-14 flex-col items-center justify-center gap-0.5 font-body text-2xs font-medium',
+              n.active ? 'text-ink' : 'text-ink-faint',
+            )}
+          >
+            <span className="relative">
+              <n.icon className="h-5 w-5" aria-hidden="true" />
+              {n.badge !== undefined && (
+                <span className="absolute -right-3 -top-1.5 rounded-full bg-status-out px-1 font-body text-[9px] font-semibold leading-[14px] tabular-nums text-white">
+                  {n.badge}
+                </span>
+              )}
+            </span>
+            {n.short}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

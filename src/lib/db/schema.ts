@@ -27,11 +27,6 @@ export const userRoleEnum = pgEnum("user_role", [
   "technician",
 ]);
 
-export const vehicleStatusEnum = pgEnum("vehicle_status", [
-  "ok",
-  "service_due",
-  "off_road",
-]);
 
 export const reportStatusEnum = pgEnum("report_status", [
   "reported",
@@ -87,10 +82,10 @@ export const users = pgTable("users", {
   distributionCompanyId: uuid("distribution_company_id").references(
     () => distributionCompanies.id
   ),
-  // Field staff only: the team they work on, and whether they're on shift now
+  // Field staff only: the team they work on
   teamId: uuid("team_id").references((): AnyPgColumn => teams.id),
+  // Set by a manager; nothing tracks shifts automatically
   onShift: boolean("on_shift").default(false).notNull(),
-  shiftStartedAt: timestamp("shift_started_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -139,7 +134,6 @@ export const teams = pgTable("teams", {
   leadAssignedAt: timestamp("lead_assigned_at"),
   // Feeders this team covers first, e.g. {"UNN Campus 11kV","Onuiyi 11kV"}
   feeders: text("feeders").array().default([]).notNull(),
-  vehicleStatus: vehicleStatusEnum("vehicle_status").default("ok").notNull(),
   isAvailable: boolean("is_available").default(true).notNull(),
   currentLat: doublePrecision("current_lat"),
   currentLng: doublePrecision("current_lng"),

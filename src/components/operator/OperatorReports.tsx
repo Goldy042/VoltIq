@@ -121,12 +121,12 @@ export function OperatorReports() {
             ))}
           </select>
         </div>
-        <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4 pb-1">
+        <div className="flex flex-wrap gap-1.5">
           <FilterPill label="All" active={review === 'all'} onClick={() => setReviewFilter('all')} />
           <FilterPill label="To review" count={counts.pending} active={review === 'pending'} onClick={() => setReviewFilter('pending')} />
           <FilterPill label="Accepted" count={counts.confirmed} active={review === 'confirmed'} onClick={() => setReviewFilter('confirmed')} />
           <FilterPill label="False" count={counts.false_report} active={review === 'false_report'} onClick={() => setReviewFilter('false_report')} />
-          <span className="mx-1 w-px shrink-0 bg-line" aria-hidden="true" />
+          <span className="basis-full sm:mx-1 sm:basis-auto sm:self-stretch sm:border-l sm:border-line" aria-hidden="true" />
           <FilterPill label="Any issue" active={issue === 'all'} onClick={() => setIssue('all')} />
           <FilterPill label="No light" active={issue === 'no_power'} onClick={() => setIssue('no_power')} />
           <FilterPill label="Low voltage" active={issue === 'low_voltage'} onClick={() => setIssue('low_voltage')} />
@@ -157,8 +157,47 @@ export function OperatorReports() {
       </AnimatePresence>
 
       <div className="overflow-hidden rounded-lg bg-surface shadow-card">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] font-body text-sm">
+        {/* Phones: one card per report */}
+        <ul className="divide-y divide-line md:hidden">
+          {shown.map((r) => (
+            <li key={r.id} className="flex items-start gap-3 p-4">
+              {canTriage && (
+                <input
+                  type="checkbox"
+                  aria-label={`Select ${r.id}`}
+                  checked={selected.has(r.id)}
+                  onChange={() =>
+                    setSelected((s) => {
+                      const next = new Set(s);
+                      if (next.has(r.id)) next.delete(r.id);
+                      else next.add(r.id);
+                      return next;
+                    })
+                  }
+                  className="mt-1 h-4 w-4 shrink-0 accent-[var(--ink)]"
+                />
+              )}
+              <button type="button" onClick={() => setOpenId(r.id)} className="min-w-0 flex-1 text-left">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="truncate font-body text-sm font-semibold text-ink">{r.reporter}</p>
+                  <span className="shrink-0 font-body text-xs text-ink-faint">{formatAgo(r.minutesAgo)}</span>
+                </div>
+                <p className="truncate font-body text-xs text-ink-muted">
+                  {areaById[r.areaId]?.name} · {r.place}
+                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <IssueBadge issue={r.issue} className="h-6" />
+                  <StatusBadge status={r.status} className="h-6" />
+                  <ReviewTag review={r.review} />
+                </div>
+              </button>
+            </li>
+          ))}
+          {shown.length === 0 && <li className="px-4 py-12 text-center font-body text-sm text-ink-muted">No reports match these filters.</li>}
+        </ul>
+
+        <div className="hidden md:block">
+          <table className="w-full font-body text-sm">
             <thead className="border-b border-line">
               <tr className="text-left text-xs text-ink-faint">
                 <th className="w-10 py-3 pl-4">

@@ -1,17 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CrownIcon, LockIcon, PlusIcon, TruckIcon, UserMinusIcon, WrenchIcon } from 'lucide-react';
+import { CrownIcon, LockIcon, PlusIcon, UserMinusIcon } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/components/ui/cn';
 import { useToast } from '@/components/ui/Toast';
-import { areas, type Crew } from '@/data/nsukka';
-import { roleMeta, vehicleLabel, type Team } from '@/data/operations';
+import { areas } from '@/data/nsukka';
+import { roleMeta, type Team } from '@/data/operations';
 import { useSharedOutageFeed } from '@/hooks/useOutageFeed';
 import { useOperations } from '@/lib/operations';
-import { Avatar, CrewStatusPill, HealthBadge, Page, PageHeader } from './parts';
+import { Avatar, HealthBadge, JobStatus, Page, PageHeader } from './parts';
 
 const feeders = [...new Set(areas.map((a) => a.feeder))];
 
@@ -23,6 +22,8 @@ export function OperatorTeams() {
   const [name, setName] = useState('');
   const [zone, setZone] = useState<string[]>([]);
   const canManage = allowed('manage_teams');
+  // The job a dispatcher sent this team on, if it's still open.
+  const jobFor = (teamId: string) => incidents.find((i) => i.id === crews.find((c) => c.id === teamId)?.incidentId && i.status !== 'restored');
 
   return (
     <Page>
@@ -107,14 +108,14 @@ export function OperatorTeams() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {teams.map((t) => (
-          <TeamCard key={t.id} team={t} crew={crews.find((c) => c.id === t.id)} jobPlace={incidents.find((i) => i.id === crews.find((c) => c.id === t.id)?.incidentId)?.place} />
+          <TeamCard key={t.id} team={t} job={jobFor(t.id)} />
         ))}
       </div>
     </Page>
   );
 }
 
-function TeamCard({ team, crew, jobPlace }: { team: Team; crew?: Crew; jobPlace?: string }) {
+function TeamCard({ team, job }: { team: Team; job?: { id: string; place: string } }) {
   const toast = useToast();
   const { staff, teams, allowed, membersOf, leadOf, staffById, healthOf, assignLead, moveToTeam, toggleShift } = useOperations();
   const members = membersOf(team.id);
@@ -186,28 +187,14 @@ function TeamCard({ team, crew, jobPlace }: { team: Team; crew?: Crew; jobPlace?
         )}
       </div>
 
-      {/* Live status */}
-      <div className="mt-4 flex flex-wrap items-center gap-2 font-body text-xs text-ink-muted">
-        {crew ? <CrewStatusPill status={crew.status} /> : <span className="rounded-full bg-sunken px-2 py-1">Not on the map yet</span>}
-        {crew?.incidentId && jobPlace && (
-          <Link href={`/operator/map?focus=${crew.incidentId}`} className="inline-flex items-center gap-1 text-accent hover:underline">
-            <TruckIcon className="h-3.5 w-3.5" aria-hidden="true" />
-            {jobPlace}
-            {crew.status === 'en_route' && crew.etaMinutes !== undefined && ` · ${crew.etaMinutes} min`}
-          </Link>
-        )}
-        <span className="inline-flex items-center gap-1">
-          <WrenchIcon className="h-3.5 w-3.5" aria-hidden="true" />
-          {vehicleLabel[team.vehicle]}
-        </span>
+      {/* Current job and 7-day record — both come from dispatches made here */}
+      <div className="mt-4 flex min-w-0 items-center gap-2">
+        <JobStatus place={job?.place} href={job ? `/operator/map?focus=${job.id}` : undefined} />
       </div>
-
-      {/* Health */}
-      <dl className="mt-4 grid grid-cols-4 gap-2 text-center">
-        <Metric label="Jobs, 7 d" value={team.jobsCompleted} />
-        <Metric label="Response" value={team.jobsCompleted ? `${team.responseMinutes}m` : '—'} />
-        <Metric label="Repair" value={team.jobsCompleted ? `${team.repairMinutes}m` : '—'} />
-        <Metric label="Within 4 hr" value={team.jobsCompleted ? `${team.slaPercent}%` : '—'} />
+      <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+        <Metric label="Restored, 7 d" value={team.jobsRestored} />
+        <Metric label="Median fix" value={team.jobsRestored ? formatFix(team.restoreMinutes) : '—'} />
+        <Metric label="Within 4 hr" value={team.jobsRestored ? `${team.within4h}%` : '—'} />
       </dl>
       {health.issues.length > 0 && (
         <ul className="mt-3 space-y-1">
@@ -236,7 +223,7 @@ function TeamCard({ team, crew, jobPlace }: { team: Team; crew?: Crew; jobPlace?
                 </p>
                 <p className="font-body text-xs text-ink-faint">
                   {roleMeta[m.role].label}
-                  {m.onShift ? ` · ${m.shiftHours} hr on shift` : ' · off shift'}
+                  {m.onShift ? ' · on shift' : ' · off shift'}
                 </p>
               </div>
               <button
@@ -301,4 +288,9 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
       <dd className="font-display text-lg font-bold leading-none tabular-nums text-ink">{value}</dd>
     </div>
   );
+}
+
+/** Dispatch → restored, e.g. "1 h 26 m". */
+function formatFix(minutes: number) {
+  return minutes < 60 ? `${minutes} m` : `${Math.floor(minutes / 60)} h ${minutes % 60} m`;
 }

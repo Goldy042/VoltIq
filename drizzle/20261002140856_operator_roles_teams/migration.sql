@@ -1,5 +1,4 @@
 CREATE TYPE "issue_type" AS ENUM('no_power', 'low_voltage', 'fluctuating');--> statement-breakpoint
-CREATE TYPE "vehicle_status" AS ENUM('ok', 'service_due', 'off_road');--> statement-breakpoint
 CREATE TABLE "area_corrections" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"user_id" uuid,
@@ -18,10 +17,8 @@ ALTER TABLE "teams" ADD COLUMN "lead_user_id" uuid;--> statement-breakpoint
 ALTER TABLE "teams" ADD COLUMN "lead_assigned_by_id" uuid;--> statement-breakpoint
 ALTER TABLE "teams" ADD COLUMN "lead_assigned_at" timestamp;--> statement-breakpoint
 ALTER TABLE "teams" ADD COLUMN "feeders" text[] DEFAULT '{}'::text[] NOT NULL;--> statement-breakpoint
-ALTER TABLE "teams" ADD COLUMN "vehicle_status" "vehicle_status" DEFAULT 'ok'::"vehicle_status" NOT NULL;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "team_id" uuid;--> statement-breakpoint
 ALTER TABLE "users" ADD COLUMN "on_shift" boolean DEFAULT false NOT NULL;--> statement-breakpoint
-ALTER TABLE "users" ADD COLUMN "shift_started_at" timestamp;--> statement-breakpoint
 ALTER TABLE "users" ALTER COLUMN "role" SET DATA TYPE text;--> statement-breakpoint
 ALTER TABLE "users" ALTER COLUMN "role" DROP DEFAULT;--> statement-breakpoint
 -- Map the old roles onto the new ones before the cast back to the enum.

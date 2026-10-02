@@ -71,115 +71,113 @@ export function OperatorStaff() {
               className="h-10 w-full rounded-full border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </label>
-          <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
-            <FilterPill label="Everyone" active={roleFilter === 'all'} onClick={() => setRoleFilter('all')} />
-          </div>
+          {roleFilter !== 'all' && (
+            <FilterPill label={`Showing ${roleMeta[roleFilter].label.toLowerCase()}s · show everyone`} active onClick={() => setRoleFilter('all')} />
+          )}
         </div>
-        <div className="-mx-4 overflow-x-auto lg:-mx-5">
-          <table className="w-full min-w-[640px] font-body text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs text-ink-faint">
-                <th className="px-4 py-2 font-medium lg:px-5">Name</th>
-                <th className="px-2 py-2 font-medium">Role</th>
-                <th className="px-2 py-2 font-medium">Team</th>
-                <th className="px-4 py-2 text-right font-medium lg:px-5">Shift</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {shown.map((s) => {
-                const office = s.role === 'manager' || s.role === 'dispatcher';
-                const lastManager = s.role === 'manager' && managers === 1;
-                const leading = leads.get(s.id);
-                return (
-                  <tr key={s.id}>
-                    <td className="px-4 py-2.5 lg:px-5">
-                      <div className="flex items-center gap-2.5">
-                        <Avatar name={s.name} size="sm" />
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold text-ink">
-                            {s.name}
-                            {s.id === actingAs.id && <span className="ml-1.5 font-normal text-ink-faint">(you)</span>}
-                          </p>
-                          <p className="text-xs tabular-nums text-ink-faint">{s.phone}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-2 py-2.5">
-                      {canRoles ? (
-                        <select
-                          aria-label={`Role for ${s.name}`}
-                          value={s.role}
-                          disabled={lastManager}
-                          title={lastManager ? 'The district needs at least one manager' : undefined}
-                          onChange={(e) => {
-                            const role = e.target.value as StaffRole;
-                            setRole(s.id, role);
-                            toast({
-                              title: `${s.name} is now ${roleMeta[role].label.toLowerCase()}`,
-                              body: role === 'team_lead' ? 'Make them lead of a team on the Teams page.' : roleMeta[role].description,
-                            });
-                          }}
-                          className="h-9 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:opacity-60"
-                        >
-                          {roles.map((r) => (
-                            <option key={r} value={r}>
-                              {roleMeta[r].label}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-ink">{roleMeta[s.role].label}</span>
-                      )}
-                      {s.role === 'team_lead' && (
-                        <p className="mt-0.5 text-xs text-ink-faint">{leading ? `Leads ${leading.name}` : 'Not leading a team yet'}</p>
-                      )}
-                    </td>
-                    <td className="px-2 py-2.5">
-                      {office ? (
-                        <span className="text-ink-faint">Office</span>
-                      ) : canTeams ? (
-                        <select
-                          aria-label={`Team for ${s.name}`}
-                          value={s.teamId ?? ''}
-                          onChange={(e) => {
-                            moveToTeam(s.id, e.target.value || null);
-                            const t = teams.find((x) => x.id === e.target.value);
-                            toast({ title: t ? `${s.name} moved to ${t.name}` : `${s.name} is unassigned` });
-                          }}
-                          className="h-9 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none"
-                        >
-                          <option value="">Unassigned</option>
-                          {teams.map((t) => (
-                            <option key={t.id} value={t.id}>
-                              {t.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="text-ink">{teams.find((t) => t.id === s.teamId)?.name ?? 'Unassigned'}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right lg:px-5">
-                      <button
-                        type="button"
-                        disabled={!canTeams}
-                        onClick={() => toggleShift(s.id)}
-                        className={`h-7 rounded-full px-2.5 text-xs font-medium disabled:cursor-default ${s.onShift ? 'bg-canvas text-status-restored' : 'bg-sunken text-ink-muted'}`}
-                      >
-                        {s.onShift ? `On · ${s.shiftHours} hr` : 'Off shift'}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="divide-y divide-line">
+          {shown.map((s) => {
+            const office = s.role === 'manager' || s.role === 'dispatcher';
+            const lastManager = s.role === 'manager' && managers === 1;
+            const leading = leads.get(s.id);
+            return (
+              <li key={s.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 py-3 font-body text-sm">
+                <div className="flex min-w-0 flex-1 basis-56 items-center gap-2.5">
+                  <Avatar name={s.name} size="sm" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">
+                      {s.name}
+                      {s.id === actingAs.id && <span className="ml-1.5 font-normal text-ink-faint">(you)</span>}
+                    </p>
+                    <p className="text-xs tabular-nums text-ink-faint">
+                      {s.phone}
+                      {s.role === 'team_lead' && ` · ${leading ? `Leads ${leading.name}` : 'Not leading a team yet'}`}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={!canTeams}
+                  onClick={() => toggleShift(s.id)}
+                  className={`h-8 shrink-0 rounded-full px-3 text-xs font-medium disabled:cursor-default sm:order-last ${s.onShift ? 'bg-canvas text-status-restored' : 'bg-sunken text-ink-muted'}`}
+                >
+                  {s.onShift ? 'On shift' : 'Off shift'}
+                </button>
+                <div className="grid w-full grid-cols-2 items-center gap-2 sm:flex sm:w-auto">
+                  {canRoles ? (
+                    <select
+                      aria-label={`Role for ${s.name}`}
+                      value={s.role}
+                      disabled={lastManager}
+                      title={lastManager ? 'The district needs at least one manager' : undefined}
+                      onChange={(e) => {
+                        const role = e.target.value as StaffRole;
+                        setRole(s.id, role);
+                        toast({
+                          title: `${s.name} is now ${roleMeta[role].label.toLowerCase()}`,
+                          body: role === 'team_lead' ? 'Make them lead of a team on the Teams page.' : roleMeta[role].description,
+                        });
+                      }}
+                      className="h-9 w-full min-w-0 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:opacity-60 sm:w-40"
+                    >
+                      {roles.map((r) => (
+                        <option key={r} value={r}>
+                          {roleMeta[r].label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-ink">{roleMeta[s.role].label}</span>
+                  )}
+                  {office ? (
+                    <span className="px-1 text-ink-faint sm:w-36">Office</span>
+                  ) : canTeams ? (
+                    <select
+                      aria-label={`Team for ${s.name}`}
+                      value={s.teamId ?? ''}
+                      onChange={(e) => {
+                        moveToTeam(s.id, e.target.value || null);
+                        const t = teams.find((x) => x.id === e.target.value);
+                        toast({ title: t ? `${s.name} moved to ${t.name}` : `${s.name} is unassigned` });
+                      }}
+                      className="h-9 w-full min-w-0 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none sm:w-36"
+                    >
+                      <option value="">Unassigned</option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-ink-muted">· {teams.find((t) => t.id === s.teamId)?.name ?? 'Unassigned'}</span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </Card>
 
       <Card title="What each role can do">
-        <div className="-mx-4 overflow-x-auto lg:-mx-5">
-          <table className="w-full min-w-[560px] font-body text-sm">
+        {/* Phones: one block per role */}
+        <div className="space-y-3 md:hidden">
+          {roles.map((r) => (
+            <div key={r} className="rounded-md bg-canvas p-3">
+              <p className="font-body text-sm font-semibold text-ink">{roleMeta[r].label}</p>
+              <ul className="mt-1.5 space-y-1">
+                {roleMeta[r].permissions.map((p) => (
+                  <li key={p} className="flex items-center gap-2 font-body text-xs text-ink-muted">
+                    <CheckIcon className="h-3.5 w-3.5 shrink-0 text-status-restored" aria-hidden="true" />
+                    {permissionLabel[p]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div className="-mx-4 hidden md:block lg:-mx-5">
+          <table className="w-full font-body text-sm">
             <thead>
               <tr className="border-b border-line text-xs text-ink-faint">
                 <th className="px-4 py-2 text-left font-medium lg:px-5">Permission</th>

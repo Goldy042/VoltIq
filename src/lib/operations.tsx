@@ -22,7 +22,7 @@ interface OpsState {
 
 const seed: OpsState = { staff: seedStaff, teams: seedTeams, actingAsId: 's-adaobi' };
 
-const STORAGE_KEY = 'voltiq.operations.v1';
+const STORAGE_KEY = 'voltiq.operations.v2';
 
 interface OpsContextValue extends OpsState {
   actingAs: Staff;
@@ -135,7 +135,7 @@ export function OperationsProvider({ children }: { children: React.ReactNode }) 
       toggleShift: (staffId) =>
         commit((s) => ({
           ...s,
-          staff: s.staff.map((p) => (p.id === staffId ? { ...p, onShift: !p.onShift, shiftHours: p.onShift ? 0 : p.shiftHours } : p)),
+          staff: s.staff.map((p) => (p.id === staffId ? { ...p, onShift: !p.onShift } : p)),
         })),
       createTeam: (name, zone) => {
         const id = `c-${Date.now().toString(36)}`;
@@ -143,7 +143,7 @@ export function OperationsProvider({ children }: { children: React.ReactNode }) 
           ...s,
           teams: [
             ...s.teams,
-            { id, name, leadId: null, leadAssignedBy: null, zone, vehicle: 'ok', jobsCompleted: 0, responseMinutes: 0, repairMinutes: 0, slaPercent: 100, callbacks: 0 },
+            { id, name, leadId: null, leadAssignedBy: null, zone, jobsRestored: 0, restoreMinutes: 0, within4h: 0 },
           ],
         }));
         return id;

@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { TruckIcon } from 'lucide-react';
 import { cn } from '@/components/ui/cn';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
-import { crewStatusLabel, type CrewStatus } from '@/data/nsukka';
 import { healthMeta, type HealthLevel } from '@/data/operations';
 import { initials } from './OperatorShell';
 
@@ -21,7 +21,7 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
 }
 
 export function Page({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-6 lg:px-8 lg:py-8">{children}</div>;
+  return <div className="mx-auto w-full max-w-6xl space-y-6 px-4 pb-12 pt-6 lg:px-8 lg:pb-16 lg:pt-8">{children}</div>;
 }
 
 export function Card({
@@ -88,18 +88,31 @@ export function HealthBadge({ level, score }: { level: HealthLevel; score?: numb
   );
 }
 
-const crewColor: Record<CrewStatus, string> = {
-  available: 'var(--status-restored)',
-  en_route: 'var(--status-crew)',
-  on_site: 'var(--status-low)',
-};
-
-export function CrewStatusPill({ status }: { status: CrewStatus }) {
-  return (
-    <span className="inline-flex h-6 items-center gap-1.5 rounded-full px-2 font-body text-xs font-semibold text-white" style={{ backgroundColor: crewColor[status] }}>
-      {status !== 'available' && <TruckIcon className="h-3 w-3" aria-hidden="true" />}
-      {crewStatusLabel[status]}
+/**
+ * Whether a team has a job, from the dispatches made on this dashboard. We
+ * don't know where a team physically is, so this never says "en route".
+ */
+export function JobStatus({ place, href }: { place?: string; href?: string }) {
+  if (!place) {
+    return (
+      <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface px-2 font-body text-xs font-medium text-ink-muted">
+        <span className="h-2 w-2 rounded-full bg-status-restored" aria-hidden="true" />
+        No job
+      </span>
+    );
+  }
+  const pill = (
+    <span className="inline-flex h-6 max-w-full items-center gap-1.5 rounded-full bg-status-crew px-2 font-body text-xs font-semibold text-white">
+      <TruckIcon className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <span className="truncate">Job · {place}</span>
     </span>
+  );
+  return href ? (
+    <Link href={href} className="min-w-0 max-w-full hover:opacity-85">
+      {pill}
+    </Link>
+  ) : (
+    pill
   );
 }
 
