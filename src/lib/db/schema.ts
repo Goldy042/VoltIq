@@ -197,7 +197,7 @@ export const teams = pgTable("teams", {
   leadUserId: uuid("lead_user_id").references((): AnyPgColumn => users.id),
   leadAssignedById: uuid("lead_assigned_by_id").references((): AnyPgColumn => users.id),
   leadAssignedAt: timestamp("lead_assigned_at"),
-  // Feeders this team covers first, e.g. {"UNN Campus 11kV","Onuiyi 11kV"}
+  // Feeders this team covers first, e.g. {"UNN Campus 11kV","Odenigwe 11kV"}
   feeders: text("feeders").array().default([]).notNull(),
   isAvailable: boolean("is_available").default(true).notNull(),
   currentLat: doublePrecision("current_lat"),

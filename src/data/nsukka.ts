@@ -1,4 +1,4 @@
-import { capsuleRing, distanceMeters, offsetMeters, pointInRing, seeded, type Ring } from '@/lib/geo';
+import { capsuleRing, circleRing, convexHull, distanceMeters, offsetMeters, pointInRing, seeded, type Ring } from '@/lib/geo';
 
 /* ------------------------------------------------------------------ */
 /* Vocabulary                                                          */
@@ -82,28 +82,38 @@ export interface Area {
    * area outright; outside, the area doesn't compete on distance.
    */
   boundary?: Ring;
+  /** Other names people use for the area, for search. */
+  aka?: string[];
 }
 
 /**
  * Hilltop, from a resident's Google Maps pins (2 Oct 2026): it starts at the
- * Hilltop gate on the south-east side of campus and runs south-east. The far
- * pin is "close to the end", so the strip is 150 m either side of the line
- * between them, with rounded ends. Add pins along the edges to tighten it.
+ * Hilltop gate on the south-east side of campus and runs south-east, 150 m
+ * either side of the line to the far pin ("close to the end"). The same
+ * resident confirmed the spot once listed as Onuiyi is Hilltop too (it's
+ * another name for the same place), so the boundary is the convex shape
+ * around that strip and 300 m around the old Onuiyi spot. Add pins along
+ * the edges to tighten it.
  */
 const HILLTOP_GATE = { lat: 6.857663, lng: 7.411243 };
 const HILLTOP_FAR = { lat: 6.854628, lng: 7.41792 };
-export const HILLTOP_BOUNDARY = capsuleRing(HILLTOP_GATE, HILLTOP_FAR, 150);
+const HILLTOP_SOUTH = { lat: 6.8508, lng: 7.4128 }; // formerly "Onuiyi"
+export const HILLTOP_BOUNDARY = convexHull(
+  capsuleRing(HILLTOP_GATE, HILLTOP_FAR, 150),
+  circleRing(HILLTOP_SOUTH.lat, HILLTOP_SOUTH.lng, 300, 32),
+);
 
 export const areas: Area[] = [
   { id: 'unn', name: 'UNN Main Campus', lat: 6.8641, lng: 7.4097, feeder: 'UNN Campus 11kV', band: 'A', households: 2400, radius: 1100, approx: false },
   {
-    id: 'hilltop', name: 'Hilltop', lat: 6.85615, lng: 7.41458, feeder: 'UNN Campus 11kV', band: 'A', households: 920, radius: 450,
+    id: 'hilltop', name: 'Hilltop', lat: 6.8545, lng: 7.4143, feeder: 'UNN Campus 11kV', band: 'A', households: 2320, radius: 700,
     approx: false, boundary: HILLTOP_BOUNDARY,
+    // Residents use both names for the same place.
+    aka: ['Onuiyi', 'Hill top'],
   },
   { id: 'odim', name: 'Odim Gate', lat: 6.8716, lng: 7.4142, feeder: 'UNN Campus 11kV', band: 'B', households: 1100, radius: 250, approx: false },
   { id: 'odenigwe', name: 'Odenigwe', lat: 6.8577, lng: 7.4028, feeder: 'Odenigwe 11kV', band: 'B', households: 1850, radius: 400, approx: true },
   { id: 'beach', name: 'Beach Junction', lat: 6.8553, lng: 7.4052, feeder: 'Odenigwe 11kV', band: 'B', households: 640, radius: 250, approx: true },
-  { id: 'onuiyi', name: 'Onuiyi', lat: 6.8508, lng: 7.4128, feeder: 'Onuiyi 11kV', band: 'C', households: 1400, radius: 600, approx: true },
   { id: 'ogige', name: 'Ogige Market', lat: 6.851, lng: 7.3994, feeder: 'Ogige 11kV', band: 'B', households: 760, radius: 350, approx: false },
   { id: 'town', name: 'Nsukka Town', lat: 6.8561, lng: 7.3927, feeder: 'Town 11kV', band: 'B', households: 2100, radius: 800, approx: false },
   { id: 'nru', name: 'Nru', lat: 6.864, lng: 7.385, feeder: 'Nru–Owerre 11kV', band: 'C', households: 1650, radius: 700, approx: true },
@@ -168,7 +178,7 @@ export const substations: Substation[] = [
     lat: 6.8503,
     lng: 7.4295,
     rating: '33/11 kV · 15 MVA',
-    feeders: ['UNN Campus 11kV', 'Onuiyi 11kV', 'Obukpa 11kV', 'Orba 11kV'],
+    feeders: ['UNN Campus 11kV', 'Obukpa 11kV', 'Orba 11kV'],
   },
 ];
 
@@ -239,9 +249,9 @@ export const incidents: Incident[] = [
     note: 'Fuse blown on the hostel transformer. Crew is replacing it now.', crewId: 'c-charlie', radius: 200,
   },
   {
-    id: 'inc-onuiyi', kind: 'incident', areaId: 'onuiyi', area: 'Onuiyi', place: 'Onuiyi, upper road',
-    lat: 6.851, lng: 7.4126, issue: 'low_voltage', status: 'confirmed', reports: 31, households: 520, minutesAgo: 140, voltage: 142,
-    note: 'Bulbs are dim, fans barely turn, fridges will not start. Stabilisers reading about 140 V against 230 V expected.', radius: 300,
+    id: 'inc-hilltop-low', kind: 'incident', areaId: 'hilltop', area: 'Hilltop', place: 'Hilltop, far end',
+    lat: 6.8551, lng: 7.4168, issue: 'low_voltage', status: 'confirmed', reports: 31, households: 520, minutesAgo: 140, voltage: 142,
+    note: 'Bulbs are dim, fans barely turn, fridges will not start. Stabilisers reading about 140 V against 230 V expected.', radius: 200,
   },
   {
     id: 'inc-ogige', kind: 'incident', areaId: 'ogige', area: 'Ogige Market', place: 'Ogige Market, Enugu Road side',

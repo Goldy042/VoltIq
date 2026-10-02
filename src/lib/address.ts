@@ -185,8 +185,8 @@ export function searchPlaces(input: string, limit = 7): SearchResult[] {
   const results: Array<SearchResult & { s: number }> = [];
   for (const a of areas) {
     // Feeder names only count weakly, so "unn" finds the campus before every area on the UNN feeder.
-    const s = score(q, [a.name]) + (q.length >= 4 ? score(q, [a.feeder]) / 4 : 0);
-    if (s) results.push({ type: 'area', id: a.id, name: a.name, detail: `Area · ${a.feeder}`, lat: a.lat, lng: a.lng, s: s + 5 });
+    const s = score(q, [a.name, ...(a.aka ?? [])]) + (q.length >= 4 ? score(q, [a.feeder]) / 4 : 0);
+    if (s) results.push({ type: 'area', id: a.id, name: a.name, detail: a.aka?.length ? `Area · also called ${a.aka[0]}` : `Area · ${a.feeder}`, lat: a.lat, lng: a.lng, s: s + 5 });
   }
   for (const l of landmarks) {
     const s = score(q, [l.name, ...(l.aka ?? [])]);

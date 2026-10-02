@@ -55,12 +55,11 @@ export const landmarks: Landmark[] = [
   { id: 'unn-main-gate', name: 'UNN Main Gate', kind: 'junction', lat: 6.8589, lng: 7.4045, source: 'local', aka: ['main gate', 'unn gate'] },
   { id: 'odim-gate', name: 'Odim Gate', kind: 'gate', lat: 6.8716, lng: 7.4142, source: 'local', aka: ['odim', 'vet odim'] },
   { id: 'beach-junction', name: 'Beach Junction', kind: 'junction', lat: 6.8553, lng: 7.4052, source: 'local', aka: ['beach'] },
-  { id: 'hilltop-gate', name: 'Hilltop Gate', kind: 'gate', lat: 6.857663, lng: 7.411243, source: 'local', aka: ['hilltop', 'hill top', 'hill top gate'] },
+  { id: 'hilltop-gate', name: 'Hilltop Gate', kind: 'gate', lat: 6.857663, lng: 7.411243, source: 'local', aka: ['hilltop', 'hill top', 'hill top gate', 'onuiyi'] },
   { id: 'odenigwe', name: 'Odenigwe', kind: 'junction', lat: 6.8577, lng: 7.4028, source: 'local' },
   { id: 'ogige-park', name: 'Ogige Motor Park', kind: 'park', lat: 6.85, lng: 7.3985, source: 'local', aka: ['motor park', 'park', 'town'] },
   { id: 'post-office-road', name: 'Post Office Road', kind: 'junction', lat: 6.8563, lng: 7.3931, source: 'local', aka: ['town', 'post office'] },
   { id: 'enugu-road-opi', name: 'Enugu Road, Opi side', kind: 'junction', lat: 6.8314, lng: 7.4066, source: 'local', aka: ['enugu road', 'opi'] },
-  { id: 'onuiyi', name: 'Onuiyi', kind: 'junction', lat: 6.8508, lng: 7.4128, source: 'local' },
   { id: 'nru-square', name: 'Nru village square', kind: 'other', lat: 6.864, lng: 7.385, source: 'local', aka: ['nru'] },
   { id: 'obukpa-road', name: 'Obukpa Road', kind: 'junction', lat: 6.9, lng: 7.415, source: 'local', aka: ['obukpa'] },
 ];
