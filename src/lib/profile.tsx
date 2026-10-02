@@ -2,7 +2,7 @@
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { citizenProfile } from '@/data/nsukka';
-import { describeLocation } from '@/lib/address';
+import { describeLocation, setAreaCorrections, type AreaCorrection } from '@/lib/address';
 
 export type PlaceLabel = 'home' | 'hostel' | 'shop' | 'work' | 'other';
 
@@ -49,6 +49,8 @@ export interface Profile {
   places: SavedPlace[];
   primaryPlaceId: string | null;
   alerts: AlertPrefs;
+  /** Places where this person told us the area we guessed was wrong. */
+  areaCorrections: AreaCorrection[];
 }
 
 export const defaultAlerts: AlertPrefs = {
@@ -81,6 +83,7 @@ const demoProfile: Profile = {
   places: [demoPlace],
   primaryPlaceId: demoPlace.id,
   alerts: defaultAlerts,
+  areaCorrections: [],
 };
 
 const STORAGE_KEY = 'voltiq.profile.v1';
@@ -93,6 +96,8 @@ interface ProfileContextValue {
   savePlace: (place: SavedPlace) => void;
   removePlace: (id: string) => void;
   setPrimary: (id: string) => void;
+  /** "I'm in Hilltop, not Odim Gate" — remembered for this spot from now on. */
+  correctArea: (p: { lat: number; lng: number }, areaId: string) => void;
   /** Start a fresh account (sign-up), clearing the demo. */
   startNew: (details: Pick<Profile, 'name' | 'phone' | 'email'>) => void;
 }
@@ -111,7 +116,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const stored = JSON.parse(raw) as Partial<Profile>;
-        setProfile({ ...demoProfile, ...stored, alerts: { ...defaultAlerts, ...stored.alerts } });
+        setProfile({ ...demoProfile, ...stored, alerts: { ...defaultAlerts, ...stored.alerts }, areaCorrections: stored.areaCorrections ?? [] });
       }
     } catch {
       /* corrupted storage: keep the demo profile */
@@ -131,6 +136,8 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo<ProfileContextValue>(() => {
+    // describeLocation is a plain function used everywhere; hand it the corrections before children render.
+    setAreaCorrections(profile.areaCorrections ?? []);
     const primary = profile.places.find((p) => p.id === profile.primaryPlaceId) ?? profile.places[0] ?? demoPlace;
     return {
       profile,
@@ -148,8 +155,19 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
           return { ...p, places, primaryPlaceId: p.primaryPlaceId === id ? places[0]?.id ?? null : p.primaryPlaceId };
         }),
       setPrimary: (id) => commit((p) => ({ ...p, primaryPlaceId: id })),
+      correctArea: (point, areaId) =>
+        commit((p) => ({
+          ...p,
+          // Newest first, and one per ~50 m so repeated taps don't pile up.
+          areaCorrections: [
+            { lat: point.lat, lng: point.lng, areaId },
+            ...(p.areaCorrections ?? []).filter(
+              (c) => Math.abs(c.lat - point.lat) > 0.00045 || Math.abs(c.lng - point.lng) > 0.00045,
+            ),
+          ].slice(0, 50),
+        })),
       startNew: (details) =>
-        commit(() => ({ ...details, onboarded: false, places: [], primaryPlaceId: null, alerts: defaultAlerts })),
+        commit((p) => ({ ...details, onboarded: false, places: [], primaryPlaceId: null, alerts: defaultAlerts, areaCorrections: p.areaCorrections ?? [] })),
     };
   }, [profile, commit]);
 

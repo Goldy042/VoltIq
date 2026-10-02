@@ -24,9 +24,10 @@ import { LocationPicker } from '@/components/map';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { cn } from '@/components/ui/cn';
-import { NSUKKA_BOUNDS, NSUKKA_CENTER, bandHours } from '@/data/nsukka';
+import { NSUKKA_CENTER, bandHours } from '@/data/nsukka';
 import type { LandmarkKind } from '@/data/landmarks';
-import { describeLocation, searchPlaces, type SearchResult } from '@/lib/address';
+import { describeLocation, resolveArea, searchPlaces, type SearchResult } from '@/lib/address';
+import { locateBest, locateErrorText, ROUGH_FIX_METERS } from '@/lib/locate';
 import { placeLabels, type PlaceLabel, type SavedPlace } from '@/lib/profile';
 
 const kindIcon: Record<LandmarkKind, React.ElementType> = {
@@ -97,33 +98,26 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
   };
 
   const locate = () => {
-    if (!navigator.geolocation) {
-      setGpsNote({ tone: 'warn', text: 'This phone can’t share its location. Search a landmark instead.' });
-      return;
-    }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
+    setGpsNote({ tone: 'ok', text: 'Finding you… GPS gets sharper over a few seconds.' });
+    locateBest({
+      onFix: (fix) => jumpTo({ lat: fix.lat, lng: fix.lng }),
+      onDone: (fix) => {
         setLocating(false);
-        const [w, s, e, n] = NSUKKA_BOUNDS;
-        if (coords.longitude < w || coords.longitude > e || coords.latitude < s || coords.latitude > n) {
-          setGpsNote({ tone: 'warn', text: 'You seem to be outside Nsukka. Search a landmark near the place instead.' });
-          return;
-        }
-        jumpTo({ lat: coords.latitude, lng: coords.longitude });
-        const acc = Math.round(coords.accuracy);
+        jumpTo({ lat: fix.lat, lng: fix.lng });
+        const acc = Math.round(fix.accuracy);
+        const match = resolveArea(fix, fix.accuracy);
         setGpsNote(
-          acc > 120
-            ? { tone: 'warn', text: `Your location is rough (about ±${acc} m). Drag the map so the pin sits on your gate.` }
+          acc > ROUGH_FIX_METERS
+            ? { tone: 'warn', text: `Your location is rough (about ±${acc} m) — you could be in ${[match.area, ...match.alternatives].map((a) => a.name).join(' or ')}. Drag the map so the pin sits on your gate.` }
             : { tone: 'ok', text: `Found you, accurate to about ${acc} m. Nudge the pin if needed.` },
         );
       },
-      () => {
+      onError: (err) => {
         setLocating(false);
-        setGpsNote({ tone: 'warn', text: 'Location is turned off. Allow it in your browser, or search a landmark.' });
+        setGpsNote({ tone: 'warn', text: locateErrorText[err] });
       },
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
+    });
   };
 
   const save = () => {

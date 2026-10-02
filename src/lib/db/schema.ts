@@ -10,16 +10,27 @@ import {
   real,
   boolean,
   index,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 /* ------------------------------------------------------------------ */
 /* ENUMS                                                              */
 /* ------------------------------------------------------------------ */
 
+// Staff roles: a manager runs the district and assigns each team its lead;
+// dispatchers triage and dispatch; team leads and technicians work in the field.
 export const userRoleEnum = pgEnum("user_role", [
   "citizen",
-  "distribution_admin",
-  "field_team",
+  "manager",
+  "dispatcher",
+  "team_lead",
+  "technician",
+]);
+
+export const vehicleStatusEnum = pgEnum("vehicle_status", [
+  "ok",
+  "service_due",
+  "off_road",
 ]);
 
 export const reportStatusEnum = pgEnum("report_status", [
@@ -76,6 +87,10 @@ export const users = pgTable("users", {
   distributionCompanyId: uuid("distribution_company_id").references(
     () => distributionCompanies.id
   ),
+  // Field staff only: the team they work on, and whether they're on shift now
+  teamId: uuid("team_id").references((): AnyPgColumn => teams.id),
+  onShift: boolean("on_shift").default(false).notNull(),
+  shiftStartedAt: timestamp("shift_started_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -118,6 +133,13 @@ export const teams = pgTable("teams", {
     .references(() => distributionCompanies.id)
     .notNull(),
   name: varchar("name", { length: 100 }).notNull(),
+  // The lead's name is what residents see beside the team. Only a manager sets it.
+  leadUserId: uuid("lead_user_id").references((): AnyPgColumn => users.id),
+  leadAssignedById: uuid("lead_assigned_by_id").references((): AnyPgColumn => users.id),
+  leadAssignedAt: timestamp("lead_assigned_at"),
+  // Feeders this team covers first, e.g. {"UNN Campus 11kV","Onuiyi 11kV"}
+  feeders: text("feeders").array().default([]).notNull(),
+  vehicleStatus: vehicleStatusEnum("vehicle_status").default("ok").notNull(),
   isAvailable: boolean("is_available").default(true).notNull(),
   currentLat: doublePrecision("current_lat"),
   currentLng: doublePrecision("current_lng"),
@@ -138,6 +160,8 @@ export const outageReports = pgTable(
     areaId: uuid("area_id").references(() => areas.id),
     latitude: doublePrecision("latitude").notNull(),
     longitude: doublePrecision("longitude").notNull(),
+    // GPS error radius in metres when the pin came from the phone; null if placed by hand
+    locationAccuracyM: real("location_accuracy_m"),
     issueType: issueTypeEnum("issue_type").default("no_power").notNull(),
     // Reading from the resident's stabiliser or meter display, when they have one
     voltageReading: integer("voltage_reading"),
@@ -201,6 +225,31 @@ export const predictions = pgTable("predictions", {
   reasoning: text("reasoning"), // short human-readable explanation, optional
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+/* ------------------------------------------------------------------ */
+/* AREA CORRECTIONS                                                   */
+/* ------------------------------------------------------------------ */
+
+// "I'm in Hilltop, not Odim Gate": residents correcting the area we guessed
+// for a point. Used to fix area boundaries and to answer nearby lookups.
+export const areaCorrections = pgTable(
+  "area_corrections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id").references(() => users.id),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    accuracyM: real("accuracy_m"),
+    guessedAreaId: uuid("guessed_area_id").references(() => areas.id),
+    areaId: uuid("area_id")
+      .references(() => areas.id)
+      .notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    areaIdx: index("area_corrections_area_idx").on(table.areaId),
+  })
+);
 
 /* ------------------------------------------------------------------ */
 /* NOTIFICATIONS                                                      */

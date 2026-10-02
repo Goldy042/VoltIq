@@ -11,6 +11,11 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.users.distributionCompanyId,
       to: r.distributionCompanies.id,
     }),
+    team: r.one.teams({
+      from: r.users.teamId,
+      to: r.teams.id,
+      alias: "members",
+    }),
     reports: r.many.outageReports(),
     notifications: r.many.notifications(),
   },
@@ -36,7 +41,29 @@ export const relations = defineRelations(schema, (r) => ({
       from: r.teams.distributionCompanyId,
       to: r.distributionCompanies.id,
     }),
+    lead: r.one.users({
+      from: r.teams.leadUserId,
+      to: r.users.id,
+      alias: "lead",
+    }),
+    leadAssignedBy: r.one.users({
+      from: r.teams.leadAssignedById,
+      to: r.users.id,
+      alias: "leadAssignedBy",
+    }),
+    members: r.many.users({ alias: "members" }),
     dispatches: r.many.dispatches(),
+  },
+
+  areaCorrections: {
+    user: r.one.users({
+      from: r.areaCorrections.userId,
+      to: r.users.id,
+    }),
+    area: r.one.areas({
+      from: r.areaCorrections.areaId,
+      to: r.areas.id,
+    }),
   },
 
   outageReports: {

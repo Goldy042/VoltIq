@@ -66,6 +66,8 @@ export interface MapCanvasProps {
   onSelect?: (id: string | null) => void;
   flyTo?: FlyTarget | null;
   user?: { lat: number; lng: number } | null;
+  /** GPS error radius around `user`, in metres. Drawn as a soft circle. */
+  userAccuracy?: number | null;
   /** Bumps a pin when a fresh report lands on it. */
   bump?: { incidentId: string; key: number } | null;
   /** Extra space reserved by overlays (bottom sheet, side panel), in px. */
@@ -99,6 +101,7 @@ export function MapCanvas({
   onSelect,
   flyTo,
   user,
+  userAccuracy,
   bump,
   padding,
   interactive = true,
@@ -217,6 +220,23 @@ export function MapCanvas({
     [dots],
   );
 
+  const accuracyGeojson = useMemo(
+    () => ({
+      type: 'FeatureCollection' as const,
+      features:
+        user && userAccuracy && userAccuracy > 15
+          ? [
+              {
+                type: 'Feature' as const,
+                properties: {},
+                geometry: { type: 'Polygon' as const, coordinates: [circleRing(user.lat, user.lng, Math.min(userAccuracy, 3000))] },
+              },
+            ]
+          : [],
+    }),
+    [user, userAccuracy],
+  );
+
   const onClick = (e: MapLayerMouseEvent) => {
     const id = e.features?.[0]?.properties?.id as string | undefined;
     onSelect?.(id ?? null);
@@ -275,6 +295,11 @@ export function MapCanvas({
         <Source id="incident-areas" type="geojson" data={areaGeojson}>
           <Layer id="incident-areas" type="fill" paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 }} />
           <Layer id="incident-outline" type="line" paint={{ 'line-color': ['get', 'color'], 'line-opacity': 0.55, 'line-width': 1.5 }} />
+        </Source>
+
+        <Source id="user-accuracy" type="geojson" data={accuracyGeojson}>
+          <Layer id="user-accuracy-fill" type="fill" paint={{ 'fill-color': '#2457f5', 'fill-opacity': 0.1 }} />
+          <Layer id="user-accuracy-line" type="line" paint={{ 'line-color': '#2457f5', 'line-opacity': 0.5, 'line-width': 1.25 }} />
         </Source>
 
         <Source id="report-dots" type="geojson" data={dotGeojson}>
