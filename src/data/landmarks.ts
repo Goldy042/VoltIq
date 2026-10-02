@@ -52,12 +52,12 @@ export const landmarks: Landmark[] = [
   { id: 'chitis', name: 'Chitis Restaurant', kind: 'other', lat: 6.86547, lng: 7.4105, source: 'osm' },
 
   // ---- Well-known local landmarks (placed by hand) ----
-  { id: 'unn-main-gate', name: 'UNN Main Gate', kind: 'gate', lat: 6.8589, lng: 7.4045, source: 'local', aka: ['main gate', 'unn gate'] },
-  { id: 'odim-gate', name: 'Odim Gate', kind: 'gate', lat: 6.8716, lng: 7.4142, source: 'local', aka: ['odim'] },
+  { id: 'unn-main-gate', name: 'UNN Main Gate', kind: 'junction', lat: 6.8589, lng: 7.4045, source: 'local', aka: ['main gate', 'unn gate'] },
+  { id: 'odim-gate', name: 'Odim Gate', kind: 'gate', lat: 6.8716, lng: 7.4142, source: 'local', aka: ['odim', 'vet odim'] },
   { id: 'beach-junction', name: 'Beach Junction', kind: 'junction', lat: 6.8553, lng: 7.4052, source: 'local', aka: ['beach'] },
-  { id: 'hilltop', name: 'Hilltop', kind: 'campus', lat: 6.8688, lng: 7.4158, source: 'local', aka: ['hill top'] },
+  { id: 'hilltop', name: 'Hilltop', kind: 'junction', lat: 6.8688, lng: 7.4158, source: 'local', aka: ['hill top'] },
   { id: 'odenigwe', name: 'Odenigwe', kind: 'junction', lat: 6.8577, lng: 7.4028, source: 'local' },
-  { id: 'ogige-park', name: 'Ogige Motor Park', kind: 'park', lat: 6.85, lng: 7.3985, source: 'local', aka: ['motor park', 'park'] },
+  { id: 'ogige-park', name: 'Ogige Motor Park', kind: 'park', lat: 6.85, lng: 7.3985, source: 'local', aka: ['motor park', 'park', 'town'] },
   { id: 'post-office-road', name: 'Post Office Road', kind: 'junction', lat: 6.8563, lng: 7.3931, source: 'local', aka: ['town', 'post office'] },
   { id: 'enugu-road-opi', name: 'Enugu Road, Opi side', kind: 'junction', lat: 6.8314, lng: 7.4066, source: 'local', aka: ['enugu road', 'opi'] },
   { id: 'onuiyi', name: 'Onuiyi', kind: 'junction', lat: 6.8508, lng: 7.4128, source: 'local' },
