@@ -67,3 +67,65 @@ export function formatDuration(minutes: number) {
   const rest = Math.round(minutes % 60);
   return rest ? `${hours} hr ${rest} min` : `${hours} hr`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Boundaries: a ring of [lng, lat] pairs (GeoJSON order), first ≠ last ok */
+/* ------------------------------------------------------------------ */
+
+export type Ring = [number, number][];
+
+/** Ray casting. Fine at Nsukka scale, where the earth is flat enough. */
+export function pointInRing(p: { lat: number; lng: number }, ring: Ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > p.lat !== yj > p.lat && p.lng < ((xj - xi) * (p.lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Metres from a point to the nearest edge of a ring (inside or out). */
+export function distanceToRingEdge(p: { lat: number; lng: number }, ring: Ring) {
+  // Local flat projection in metres around p.
+  const kx = 111_320 * Math.cos((p.lat * Math.PI) / 180);
+  const ky = 111_320;
+  let best = Infinity;
+  for (let i = 0; i < ring.length; i++) {
+    const [ax, ay] = ring[i];
+    const [bx, by] = ring[(i + 1) % ring.length];
+    const x1 = (ax - p.lng) * kx, y1 = (ay - p.lat) * ky;
+    const x2 = (bx - p.lng) * kx, y2 = (by - p.lat) * ky;
+    const dx = x2 - x1, dy = y2 - y1;
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, -(x1 * dx + y1 * dy) / len)) : 0;
+    best = Math.min(best, Math.hypot(x1 + t * dx, y1 + t * dy));
+  }
+  return best;
+}
+
+/**
+ * Everything within `radius` metres of the line a→b, as a ring: a strip with
+ * rounded ends. Used when residents have only pinned the two ends of an area.
+ */
+export function capsuleRing(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+  radius: number,
+  stepsPerEnd = 12,
+): Ring {
+  const north = (b.lat - a.lat) * 111_320;
+  const east = (b.lng - a.lng) * 111_320 * Math.cos((a.lat * Math.PI) / 180);
+  const heading = Math.atan2(north, east); // direction a→b, radians from east
+  const ring: Ring = [];
+  const arc = (c: { lat: number; lng: number }, from: number) => {
+    for (let i = 0; i <= stepsPerEnd; i++) {
+      const ang = from + (i / stepsPerEnd) * Math.PI;
+      const q = offsetMeters(c.lat, c.lng, Math.sin(ang) * radius, Math.cos(ang) * radius);
+      ring.push([q.lng, q.lat]);
+    }
+  };
+  arc(b, heading - Math.PI / 2); // round the far end
+  arc(a, heading + Math.PI / 2); // and the near end
+  return ring;
+}
