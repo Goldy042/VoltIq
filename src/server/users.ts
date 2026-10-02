@@ -34,7 +34,8 @@ export async function getCurrentUser(): Promise<DbUser | null> {
   if (!clerk) return null;
   const email = (clerk.primaryEmailAddress?.emailAddress ?? clerk.emailAddresses[0]?.emailAddress ?? '').toLowerCase();
   if (!email) return null;
-  const name = clerk.fullName?.trim() || [clerk.firstName, clerk.lastName].filter(Boolean).join(' ') || email.split('@')[0];
+  const metaName = typeof clerk.unsafeMetadata?.name === 'string' ? clerk.unsafeMetadata.name.trim().slice(0, 120) : '';
+  const name = metaName || clerk.fullName?.trim() || [clerk.firstName, clerk.lastName].filter(Boolean).join(' ') || email.split('@')[0];
   const phone = typeof clerk.unsafeMetadata?.phone === 'string' ? clerk.unsafeMetadata.phone.slice(0, 20) : null;
 
   const [byEmail] = await db.select().from(users).where(eq(users.email, email));

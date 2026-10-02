@@ -57,15 +57,13 @@ export function SignupScreen() {
     setErrors(next);
     if (Object.keys(next).length) return;
     setPending(true);
-    const [firstName, ...rest] = form.name.trim().split(/\s+/);
+    // Name and phone ride in metadata: Clerk rejects firstName/lastName unless
+    // "First and last name" is enabled, and phone isn't a sign-in method here.
+    // Our API copies both onto the user row on first sign-in.
     const created = await signUp.password({
       emailAddress: form.email.trim(),
       password: form.password,
-      firstName,
-      lastName: rest.join(' ') || undefined,
-      // Phone isn't a Clerk sign-in method here; our API copies it onto the user row.
-      unsafeMetadata: form.phone ? { phone: pretty(form.phone) } : undefined,
-      legalAccepted: true,
+      unsafeMetadata: { name: form.name.trim(), ...(form.phone ? { phone: pretty(form.phone) } : {}) },
     });
     if (created.error) {
       setPending(false);
