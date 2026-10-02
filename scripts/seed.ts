@@ -5,10 +5,12 @@
  *   DATABASE_URL=… pnpm db:seed
  */
 import 'dotenv/config';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/lib/db/client';
-import { areas as areaTable, distributionCompanies } from '@/lib/db/schema';
-import { areas } from '@/data/nsukka';
+import { areas as areaTable, distributionCompanies, savedPlaces } from '@/lib/db/schema';
+import { areaById, areaContaining, areas } from '@/data/nsukka';
+import { pointInRing } from '@/lib/geo';
+import { resolveArea } from '@/lib/address';
 
 async function main() {
   const db = getDb();
@@ -51,6 +53,25 @@ async function main() {
       });
   }
   console.log(`Seeded EEDC and ${areas.length} areas.`);
+
+  // Areas with a drawn boundary are authoritative: re-file saved places that
+  // sit inside one, or that were filed under one they're actually outside.
+  const rows = await db.select({ id: areaTable.id, slug: areaTable.slug }).from(areaTable);
+  const idBySlug = new Map(rows.map((r) => [r.slug, r.id]));
+  const slugById = new Map(rows.map((r) => [r.id, r.slug]));
+  let moved = 0;
+  for (const place of await db.select().from(savedPlaces)) {
+    const p = { lat: place.latitude, lng: place.longitude };
+    const current = place.areaId ? slugById.get(place.areaId) : undefined;
+    const inside = areaContaining(p);
+    const wrongBoundary = current && areaById[current]?.boundary && !pointInRing(p, areaById[current].boundary!);
+    const next = inside ? inside.id : wrongBoundary ? resolveArea(p, 0, []).area.id : current;
+    if (next && next !== current && idBySlug.has(next)) {
+      await db.update(savedPlaces).set({ areaId: idBySlug.get(next)!, updatedAt: new Date() }).where(eq(savedPlaces.id, place.id));
+      moved++;
+    }
+  }
+  console.log(`Re-filed ${moved} saved place${moved === 1 ? '' : 's'} by drawn boundaries.`);
   process.exit(0);
 }
 

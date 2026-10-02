@@ -1,4 +1,4 @@
-import { distanceMeters, offsetMeters, seeded } from '@/lib/geo';
+import { capsuleRing, distanceMeters, offsetMeters, pointInRing, seeded, type Ring } from '@/lib/geo';
 
 /* ------------------------------------------------------------------ */
 /* Vocabulary                                                          */
@@ -77,11 +77,29 @@ export interface Area {
    * OpenStreetMap. Replace with EEDC feeder polygons when available.
    */
   approx: boolean;
+  /**
+   * Where residents have marked the area out. A point inside belongs to this
+   * area outright; outside, the area doesn't compete on distance.
+   */
+  boundary?: Ring;
 }
+
+/**
+ * Hilltop, from a resident's Google Maps pins (2 Oct 2026): it starts at the
+ * Hilltop gate on the south-east side of campus and runs south-east. The far
+ * pin is "close to the end", so the strip is 150 m either side of the line
+ * between them, with rounded ends. Add pins along the edges to tighten it.
+ */
+const HILLTOP_GATE = { lat: 6.857663, lng: 7.411243 };
+const HILLTOP_FAR = { lat: 6.854628, lng: 7.41792 };
+export const HILLTOP_BOUNDARY = capsuleRing(HILLTOP_GATE, HILLTOP_FAR, 150);
 
 export const areas: Area[] = [
   { id: 'unn', name: 'UNN Main Campus', lat: 6.8641, lng: 7.4097, feeder: 'UNN Campus 11kV', band: 'A', households: 2400, radius: 1100, approx: false },
-  { id: 'hilltop', name: 'Hilltop', lat: 6.8688, lng: 7.4158, feeder: 'UNN Campus 11kV', band: 'A', households: 920, radius: 450, approx: true },
+  {
+    id: 'hilltop', name: 'Hilltop', lat: 6.85615, lng: 7.41458, feeder: 'UNN Campus 11kV', band: 'A', households: 920, radius: 450,
+    approx: false, boundary: HILLTOP_BOUNDARY,
+  },
   { id: 'odim', name: 'Odim Gate', lat: 6.8716, lng: 7.4142, feeder: 'UNN Campus 11kV', band: 'B', households: 1100, radius: 250, approx: false },
   { id: 'odenigwe', name: 'Odenigwe', lat: 6.8577, lng: 7.4028, feeder: 'Odenigwe 11kV', band: 'B', households: 1850, radius: 400, approx: true },
   { id: 'beach', name: 'Beach Junction', lat: 6.8553, lng: 7.4052, feeder: 'Odenigwe 11kV', band: 'B', households: 640, radius: 250, approx: true },
@@ -108,9 +126,21 @@ export function areaScore(a: Area, p: { lat: number; lng: number }, meters = dis
   return meters / Math.sqrt(a.radius);
 }
 
-/** Best-matching area for a point — stands in for a feeder-polygon lookup. */
+/** The area whose resident-drawn boundary contains the point, if any. */
+export function areaContaining(p: { lat: number; lng: number }) {
+  return areas.find((a) => a.boundary && pointInRing(p, a.boundary)) ?? null;
+}
+
+/**
+ * Best-matching area for a point — stands in for a feeder-polygon lookup.
+ * Drawn boundaries win outright; otherwise the closest centre (by size) among
+ * areas that have no boundary.
+ */
 export function nearestArea(p: { lat: number; lng: number }) {
-  return areas.reduce((best, a) => (areaScore(a, p) < areaScore(best, p) ? a : best));
+  const inside = areaContaining(p);
+  if (inside) return inside;
+  const open = areas.filter((a) => !a.boundary);
+  return open.reduce((best, a) => (areaScore(a, p) < areaScore(best, p) ? a : best));
 }
 
 export interface Substation {
@@ -167,7 +197,7 @@ export const crewStatusLabel: Record<CrewStatus, string> = {
 export const crews: Crew[] = [
   { id: 'c-alpha', name: 'Crew Alpha', status: 'available', lat: 6.8471, lng: 7.4021 },
   { id: 'c-bravo', name: 'Crew Bravo', status: 'en_route', lat: 6.8528, lng: 7.4031, incidentId: 'inc-odenigwe', etaMinutes: 6 },
-  { id: 'c-charlie', name: 'Crew Charlie', status: 'on_site', lat: 6.8684, lng: 7.4151, incidentId: 'inc-hilltop' },
+  { id: 'c-charlie', name: 'Crew Charlie', status: 'on_site', lat: 6.8561, lng: 7.4149, incidentId: 'inc-hilltop' },
   { id: 'c-delta', name: 'Crew Delta', status: 'available', lat: 6.8556, lng: 7.3936 },
 ];
 
@@ -205,7 +235,7 @@ export const incidents: Incident[] = [
   },
   {
     id: 'inc-hilltop', kind: 'incident', areaId: 'hilltop', area: 'Hilltop', place: 'Hilltop hostels',
-    lat: 6.8686, lng: 7.4155, issue: 'no_power', status: 'crew_dispatched', reports: 26, households: 340, minutesAgo: 96,
+    lat: 6.8562, lng: 7.4146, issue: 'no_power', status: 'crew_dispatched', reports: 26, households: 340, minutesAgo: 96,
     note: 'Fuse blown on the hostel transformer. Crew is replacing it now.', crewId: 'c-charlie', radius: 200,
   },
   {
@@ -305,7 +335,7 @@ export interface Prediction {
 
 export const predictions: Prediction[] = [
   {
-    id: 'pred-odim', kind: 'prediction', areaId: 'odim', area: 'Odim Gate & Hilltop', lat: 6.8703, lng: 7.4152, radius: 620,
+    id: 'pred-odim', kind: 'prediction', areaId: 'odim', area: 'Odim Gate', lat: 6.8712, lng: 7.4145, radius: 450,
     issue: 'no_power', confidence: 78, window: 'Tonight, 7 – 10 PM', startsInHours: 3, households: 2020,
     reasons: [
       'Evening load on UNN Campus 11kV has passed 95% of capacity three nights running',

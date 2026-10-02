@@ -4,7 +4,8 @@ import { FLAG_THRESHOLD, LIMITS, assessSuspicion, checkRateLimit, reportWeight, 
 
 const now = new Date('2026-10-02T16:00:00Z');
 const minsAgo = (m: number) => new Date(now.getTime() - m * 60_000);
-const hilltop = { lat: 6.8688, lng: 7.4158 };
+// Middle of Hilltop, between the resident-pinned gate and far end.
+const hilltop = { lat: 6.85615, lng: 7.41458 };
 
 test('rate limit: 3 an hour, then says when the next one is allowed', () => {
   const ok = checkRateLimit({ userReports: [minsAgo(5), minsAgo(20)], ipReports: [], trust: 50, now });

@@ -6,9 +6,9 @@
  * derived from that coordinate, so nobody has to know a street name.
  */
 
-import { areas, areaById, areaScore, nearestArea, type Area } from '@/data/nsukka';
+import { areas, areaById, areaContaining, areaScore, nearestArea, type Area } from '@/data/nsukka';
 import { landmarks, type Landmark } from '@/data/landmarks';
-import { distanceMeters } from '@/lib/geo';
+import { distanceMeters, distanceToRingEdge } from '@/lib/geo';
 import { shortPlusCode } from '@/lib/pluscode';
 
 export interface LatLng {
@@ -72,36 +72,57 @@ export interface AreaMatch {
 }
 
 /**
- * Which area a point is in. With `accuracy` (metres, from the GPS fix) any
- * area the error circle could reach and that scores close enough is offered
- * as an alternative, so a rough fix asks "Hilltop or Odim Gate?" instead of
- * confidently guessing wrong.
+ * Which area a point is in.
+ *
+ * 1. Inside a resident-drawn boundary (Hilltop): that area, full stop — unless
+ *    the GPS error reaches past its edge, then we ask.
+ * 2. Otherwise: a resident's correction for this spot, or the closest centre
+ *    (scaled by size) among areas without a boundary.
+ *
+ * With `accuracy` (metres, from the GPS fix) any area the error circle could
+ * reach is offered as an alternative, so a rough fix asks "Hilltop or Odim
+ * Gate?" instead of confidently guessing wrong.
  */
 export function resolveArea(p: LatLng, accuracy = 0, list: AreaCorrection[] = corrections): AreaMatch {
-  let correction: AreaCorrection | null = null;
-  let correctionMeters = CORRECTION_RADIUS_M;
-  for (const c of list) {
-    const d = distanceMeters(c, p);
-    if (d < correctionMeters && areaById[c.areaId]) {
-      correction = c;
-      correctionMeters = d;
-    }
-  }
-
-  const ranked = areas
+  const open = areas.filter((a) => !a.boundary);
+  const ranked = open
     .map((a) => {
       const d = distanceMeters(a, p);
       return { a, d, s: areaScore(a, p, d) };
     })
     .sort((x, y) => x.s - y.s);
+  // Bounded areas the GPS error circle reaches into.
+  const boundedNearby = areas.filter((a) => a.boundary && distanceToRingEdge(p, a.boundary) <= accuracy);
+
+  const inside = areaContaining(p);
+  if (inside) {
+    const unsure = accuracy > distanceToRingEdge(p, inside.boundary!);
+    const alternatives = unsure
+      ? [...boundedNearby.filter((a) => a.id !== inside.id), ...ranked.slice(0, 2).map((r) => r.a)].slice(0, 3)
+      : [];
+    return { area: inside, alternatives, confident: !unsure, corrected: false };
+  }
+
+  // A boundary is the last word on its area, so corrections only pick among the rest.
+  let correction: AreaCorrection | null = null;
+  let correctionMeters = CORRECTION_RADIUS_M;
+  for (const c of list) {
+    const d = distanceMeters(c, p);
+    if (d < correctionMeters && areaById[c.areaId] && !areaById[c.areaId].boundary) {
+      correction = c;
+      correctionMeters = d;
+    }
+  }
 
   const best = correction ? ranked.find((r) => r.a.id === correction.areaId)! : ranked[0];
   const worstCase = areaScore(best.a, p, best.d + accuracy);
-  const alternatives = ranked
-    .filter((r) => r.a.id !== best.a.id)
-    .filter((r) => r.s < best.s * 1.25 || areaScore(r.a, p, Math.max(0, r.d - accuracy)) <= worstCase)
-    .slice(0, 3)
-    .map((r) => r.a);
+  const alternatives = [
+    ...boundedNearby,
+    ...ranked
+      .filter((r) => r.a.id !== best.a.id)
+      .filter((r) => r.s < best.s * 1.25 || areaScore(r.a, p, Math.max(0, r.d - accuracy)) <= worstCase)
+      .map((r) => r.a),
+  ].slice(0, 3);
 
   return {
     area: best.a,

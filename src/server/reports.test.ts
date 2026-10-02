@@ -12,7 +12,8 @@ const url = process.env.TEST_DATABASE_URL;
 const skip = !url && 'TEST_DATABASE_URL not set';
 if (url) process.env.DATABASE_URL = url;
 
-const hilltop = { lat: 6.8688, lng: 7.4158 };
+// Middle of Hilltop, between the resident-pinned gate and far end.
+const hilltop = { lat: 6.85615, lng: 7.41458 };
 const near = (m: number) => ({ lat: hilltop.lat + m / 111_320, lng: hilltop.lng });
 const t0 = new Date('2026-10-02T16:00:00Z');
 const at = (min: number) => new Date(t0.getTime() + min * 60_000);
@@ -164,17 +165,25 @@ test('area suggestions use residents’ corrections', { skip }, async () => {
   const a = await makeUser();
   const b = await makeUser();
   const c = await makeUser();
-  const spot = { lat: 6.8698, lng: 7.4152 }; // between Hilltop and Odim Gate, nearer Hilltop
+  const spot = { lat: 6.8705, lng: 7.4147 }; // near Odim Street, between Odim Gate and the campus
   const before = await R.suggestAreas(db, spot, 0, c.id);
-  assert.equal(before.areas[0].slug, 'hilltop');
-  // Two residents say this spot is Odim Gate.
-  await R.recordAreaCorrection(db, a.id, spot, 'odim', 'hilltop');
-  await R.recordAreaCorrection(db, b.id, { lat: spot.lat + 0.0002, lng: spot.lng }, 'odim', 'hilltop');
-  const afterCommunity = await R.suggestAreas(db, spot, 0, c.id);
-  assert.equal(afterCommunity.areas[0].slug, 'odim');
+  const guess = before.areas[0].slug;
+  const other = guess === 'unn' ? 'odim' : 'unn';
+  // Two residents say this spot is the other area.
+  await R.recordAreaCorrection(db, a.id, spot, other, guess);
+  await R.recordAreaCorrection(db, b.id, { lat: spot.lat + 0.0002, lng: spot.lng }, other, guess);
+  assert.equal((await R.suggestAreas(db, spot, 0, c.id)).areas[0].slug, other);
   // Your own correction beats the community's.
-  await R.recordAreaCorrection(db, c.id, spot, 'hilltop', 'odim');
-  assert.equal((await R.suggestAreas(db, spot, 0, c.id)).areas[0].slug, 'hilltop');
+  await R.recordAreaCorrection(db, c.id, spot, guess, other);
+  assert.equal((await R.suggestAreas(db, spot, 0, c.id)).areas[0].slug, guess);
+});
+
+test('a drawn boundary beats corrections (Hilltop)', { skip }, async () => {
+  const a = await makeUser();
+  const b = await makeUser();
+  await R.recordAreaCorrection(db, a.id, hilltop, 'onuiyi', 'hilltop');
+  await R.recordAreaCorrection(db, b.id, hilltop, 'onuiyi', 'hilltop');
+  assert.equal((await R.suggestAreas(db, hilltop, 0, a.id)).areas[0].slug, 'hilltop');
 });
 
 test('validation: outside Nsukka and future start times are refused', { skip }, async () => {
