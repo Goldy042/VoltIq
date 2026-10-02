@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   crews as seedCrews,
   incidents as seedIncidents,
@@ -26,6 +26,8 @@ interface Options {
   /** Simulate a neighbour report every few seconds. */
   live?: boolean;
   onEvent?: (event: FeedEvent) => void;
+  /** False parks the simulation entirely (a shared feed is in charge). */
+  enabled?: boolean;
 }
 
 /**
@@ -33,7 +35,7 @@ interface Options {
  * drips in new citizen reports so the map is never static. Replace with a
  * server subscription (SSE / Neon logical replication) when the API exists.
  */
-export function useOutageFeed({ live = true, onEvent }: Options = {}) {
+export function useOutageFeed({ live = true, onEvent, enabled = true }: Options = {}) {
   const [incidents, setIncidents] = useState<Incident[]>(seedIncidents);
   const [crews, setCrews] = useState<Crew[]>(seedCrews);
   const [extraDots, setExtraDots] = useState<ReportDot[]>([]);
@@ -66,7 +68,7 @@ export function useOutageFeed({ live = true, onEvent }: Options = {}) {
 
   // A neighbour reports somewhere active every 10–16 seconds — alive, not alarming.
   useEffect(() => {
-    if (!live) return;
+    if (!live || !enabled) return;
     let timer: number;
     const tick = () => {
       const active = incidentsRef.current.filter((i) => i.status !== 'restored');
@@ -82,10 +84,11 @@ export function useOutageFeed({ live = true, onEvent }: Options = {}) {
     };
     timer = window.setTimeout(tick, 3500);
     return () => window.clearTimeout(timer);
-  }, [live, addReport]);
+  }, [live, enabled, addReport]);
 
   // Crews en route drive toward their incident.
   useEffect(() => {
+    if (!enabled) return;
     const timer = window.setInterval(() => {
       setCrews((prev) =>
         prev.map((crew) => {
@@ -105,7 +108,7 @@ export function useOutageFeed({ live = true, onEvent }: Options = {}) {
       );
     }, 1500);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [enabled]);
 
   const setStatus = useCallback((incidentId: string, status: IncidentStatus) => {
     setIncidents((prev) =>
@@ -130,4 +133,24 @@ export function useOutageFeed({ live = true, onEvent }: Options = {}) {
   }, []);
 
   return { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew };
+}
+
+export type OutageFeed = ReturnType<typeof useOutageFeed>;
+
+const FeedContext = createContext<OutageFeed | null>(null);
+
+/**
+ * One feed for a whole section (the operator dashboard), so a dispatch made on
+ * the map is still there on the reports and teams pages.
+ */
+export function OutageFeedProvider({ children }: { children: ReactNode }) {
+  const feed = useOutageFeed();
+  return createElement(FeedContext.Provider, { value: feed }, children);
+}
+
+/** The section's shared feed if there is one, otherwise a feed of its own. */
+export function useSharedOutageFeed() {
+  const shared = useContext(FeedContext);
+  const own = useOutageFeed({ enabled: !shared });
+  return shared ?? own;
 }

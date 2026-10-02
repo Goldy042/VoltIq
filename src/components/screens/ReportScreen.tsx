@@ -11,13 +11,13 @@ import { TextField } from '@/components/ui/TextField';
 import { TextArea } from '@/components/ui/TextArea';
 import { IssueIcon } from '@/components/ui/Badges';
 import {
-  NSUKKA_BOUNDS,
   incidents,
   issueMeta,
-  nearestArea,
   type IssueType,
 } from '@/data/nsukka';
 import { distanceMeters } from '@/lib/geo';
+import { resolveArea } from '@/lib/address';
+import { locateBest } from '@/lib/locate';
 import { useProfile } from '@/lib/profile';
 
 type Step = 0 | 1 | 2 | 3;
@@ -54,7 +54,7 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
 
-  const area = useMemo(() => nearestArea(pos), [pos]);
+  const area = useMemo(() => resolveArea(pos).area, [pos]);
   const nearby = useMemo(
     () => incidents.find((i) => i.status !== 'restored' && distanceMeters(i, pos) < i.radius + 150),
     [pos],
@@ -66,19 +66,15 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
   };
 
   const useMyLocation = () => {
-    if (!navigator.geolocation) return;
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLocating(false);
-        const [w, s, e, n] = NSUKKA_BOUNDS;
-        if (coords.longitude < w || coords.longitude > e || coords.latitude < s || coords.latitude > n) return;
-        setPos({ lat: coords.latitude, lng: coords.longitude });
+    locateBest({
+      onFix: (fix) => {
+        setPos({ lat: fix.lat, lng: fix.lng });
         setRecenter(Date.now());
       },
-      () => setLocating(false),
-      { enableHighAccuracy: true, timeout: 6000 },
-    );
+      onDone: () => setLocating(false),
+      onError: () => setLocating(false),
+    });
   };
 
   const next = () => {

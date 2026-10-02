@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { CheckIcon, TruckIcon, UsersIcon } from 'lucide-react';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { cn } from '@/components/ui/cn';
+import { useOperations } from '@/lib/operations';
 import {
   CONFIRM_AT_REPORTS,
   crewStatusLabel,
@@ -25,6 +26,7 @@ const ease = [0.23, 1, 0.32, 1] as const;
 
 /** Uber-style live tracker for the fault on the citizen's street. */
 export function RepairTracker({ incident, crew }: { incident: Incident; crew?: Crew }) {
+  const { leadName } = useOperations();
   const step = statusMeta[incident.status].step;
   const toConfirm = Math.max(0, CONFIRM_AT_REPORTS - incident.reports);
 
@@ -106,7 +108,7 @@ export function RepairTracker({ incident, crew }: { incident: Incident; crew?: C
           </span>
           <div>
             <p className="font-body text-sm font-semibold text-ink">
-              {crew.name} · {crew.lead}
+              {crew.name} · {leadName(crew.id)}
             </p>
             <p className="font-body text-xs text-ink-muted">{crewStatusLabel[crew.status]}</p>
           </div>

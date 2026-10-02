@@ -17,6 +17,7 @@ import {
   type IncidentStatus,
 } from '@/data/nsukka';
 import { distanceMeters, formatAgo } from '@/lib/geo';
+import { useOperations } from '@/lib/operations';
 
 interface IncidentDetailProps {
   incident: Incident;
@@ -34,6 +35,7 @@ const steps: IncidentStatus[] = ['reported', 'confirmed', 'crew_dispatched', 're
 export function IncidentDetail({ incident, crews, view, onBack, affected, onAffected, onStatus, onDispatch }: IncidentDetailProps) {
   const area = areaById[incident.areaId];
   const crew = crews.find((c) => c.id === incident.crewId);
+  const { leadName } = useOperations();
   const step = statusMeta[incident.status].step;
 
   return (
@@ -110,7 +112,7 @@ export function IncidentDetail({ incident, crews, view, onBack, affected, onAffe
                   </p>
                   {s === 'crew_dispatched' && crew && (
                     <p className="mt-0.5 font-body text-xs text-ink-muted">
-                      {crew.name} · {crew.lead} · {crewStatusLabel[crew.status]}
+                      {crew.name} · {leadName(crew.id)} · {crewStatusLabel[crew.status]}
                       {crew.status === 'en_route' && crew.etaMinutes !== undefined && ` · about ${crew.etaMinutes} min away`}
                     </p>
                   )}
@@ -202,6 +204,7 @@ function OperatorActions({
   onStatus: (s: IncidentStatus) => void;
   onDispatch: (crewId: string) => void;
 }) {
+  const { leadName } = useOperations();
   const available = crews
     .filter((c) => c.status === 'available')
     .map((c) => ({ crew: c, meters: distanceMeters(c, incident) }))
@@ -248,7 +251,7 @@ function OperatorActions({
               >
                 <TruckIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="flex-1 font-body text-sm font-medium">
-                  {crew.name} <span className="font-normal opacity-70">· {crew.lead}</span>
+                  {crew.name} <span className="font-normal opacity-70">· {leadName(crew.id)}</span>
                 </span>
                 <span className="font-body text-xs tabular-nums opacity-70">{(meters / 1000).toFixed(1)} km</span>
               </button>

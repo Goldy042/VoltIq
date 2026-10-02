@@ -6,7 +6,7 @@
  * derived from that coordinate, so nobody has to know a street name.
  */
 
-import { areas, areaById, nearestArea, type Area } from '@/data/nsukka';
+import { areas, areaById, areaScore, nearestArea, type Area } from '@/data/nsukka';
 import { landmarks, type Landmark } from '@/data/landmarks';
 import { distanceMeters } from '@/lib/geo';
 import { shortPlusCode } from '@/lib/pluscode';
@@ -39,11 +39,83 @@ function bearingWord(from: LatLng, to: LatLng) {
   return COMPASS[Math.round(deg / 45) % 8];
 }
 
+/* ------------------------------------------------------------------ */
+/* Area resolution: size-aware, honest about GPS error, and corrected   */
+/* by the people who live there.                                       */
+/* ------------------------------------------------------------------ */
+
+/** "I'm in Hilltop, not Odim Gate" — remembered for points nearby. */
+export interface AreaCorrection {
+  lat: number;
+  lng: number;
+  areaId: string;
+}
+
+/** A correction applies to anything within this distance of where it was made. */
+const CORRECTION_RADIUS_M = 150;
+
+let corrections: AreaCorrection[] = [];
+
+/** Set by ProfileProvider from the saved profile. Server code never sees any. */
+export function setAreaCorrections(list: AreaCorrection[]) {
+  corrections = list;
+}
+
+export interface AreaMatch {
+  area: Area;
+  /** Other areas the person could plausibly be in, best first. */
+  alternatives: Area[];
+  /** False when GPS error or a near-tie means we should ask. */
+  confident: boolean;
+  /** True when a resident's own correction decided it. */
+  corrected: boolean;
+}
+
+/**
+ * Which area a point is in. With `accuracy` (metres, from the GPS fix) any
+ * area the error circle could reach and that scores close enough is offered
+ * as an alternative, so a rough fix asks "Hilltop or Odim Gate?" instead of
+ * confidently guessing wrong.
+ */
+export function resolveArea(p: LatLng, accuracy = 0): AreaMatch {
+  let correction: AreaCorrection | null = null;
+  let correctionMeters = CORRECTION_RADIUS_M;
+  for (const c of corrections) {
+    const d = distanceMeters(c, p);
+    if (d < correctionMeters && areaById[c.areaId]) {
+      correction = c;
+      correctionMeters = d;
+    }
+  }
+
+  const ranked = areas
+    .map((a) => {
+      const d = distanceMeters(a, p);
+      return { a, d, s: areaScore(a, p, d) };
+    })
+    .sort((x, y) => x.s - y.s);
+
+  const best = correction ? ranked.find((r) => r.a.id === correction.areaId)! : ranked[0];
+  const worstCase = areaScore(best.a, p, best.d + accuracy);
+  const alternatives = ranked
+    .filter((r) => r.a.id !== best.a.id)
+    .filter((r) => r.s < best.s * 1.25 || areaScore(r.a, p, Math.max(0, r.d - accuracy)) <= worstCase)
+    .slice(0, 3)
+    .map((r) => r.a);
+
+  return {
+    area: best.a,
+    alternatives,
+    confident: Boolean(correction) || alternatives.length === 0,
+    corrected: Boolean(correction),
+  };
+}
+
 const roundMeters = (m: number) => (m < 100 ? Math.round(m / 10) * 10 : Math.round(m / 50) * 50);
 
 /** Reverse-geocode a pin into words people in Nsukka use. */
 export function describeLocation(p: LatLng): LocationDescription {
-  const area = nearestArea(p);
+  const { area } = resolveArea(p);
   let landmark: Landmark | null = null;
   let landmarkMeters = Infinity;
   for (const l of landmarks) {

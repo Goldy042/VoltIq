@@ -68,6 +68,11 @@ export interface Area {
   band: 'A' | 'B' | 'C' | 'D';
   households: number;
   /**
+   * Rough extent in metres. A gate or junction is small; a campus or village
+   * is large, so a point between them leans toward the larger one.
+   */
+  radius: number;
+  /**
    * True where the centroid is placed by hand rather than taken from
    * OpenStreetMap. Replace with EEDC feeder polygons when available.
    */
@@ -75,28 +80,37 @@ export interface Area {
 }
 
 export const areas: Area[] = [
-  { id: 'unn', name: 'UNN Main Campus', lat: 6.8641, lng: 7.4097, feeder: 'UNN Campus 11kV', band: 'A', households: 2400, approx: false },
-  { id: 'hilltop', name: 'Hilltop', lat: 6.8688, lng: 7.4158, feeder: 'UNN Campus 11kV', band: 'A', households: 920, approx: true },
-  { id: 'odim', name: 'Odim Gate', lat: 6.8716, lng: 7.4142, feeder: 'UNN Campus 11kV', band: 'B', households: 1100, approx: false },
-  { id: 'odenigwe', name: 'Odenigwe', lat: 6.8577, lng: 7.4028, feeder: 'Odenigwe 11kV', band: 'B', households: 1850, approx: true },
-  { id: 'beach', name: 'Beach Junction', lat: 6.8553, lng: 7.4052, feeder: 'Odenigwe 11kV', band: 'B', households: 640, approx: true },
-  { id: 'onuiyi', name: 'Onuiyi', lat: 6.8508, lng: 7.4128, feeder: 'Onuiyi 11kV', band: 'C', households: 1400, approx: true },
-  { id: 'ogige', name: 'Ogige Market', lat: 6.851, lng: 7.3994, feeder: 'Ogige 11kV', band: 'B', households: 760, approx: false },
-  { id: 'town', name: 'Nsukka Town', lat: 6.8561, lng: 7.3927, feeder: 'Town 11kV', band: 'B', households: 2100, approx: false },
-  { id: 'nru', name: 'Nru', lat: 6.864, lng: 7.385, feeder: 'Nru–Owerre 11kV', band: 'C', households: 1650, approx: true },
-  { id: 'ihe', name: 'Ihe', lat: 6.848, lng: 7.3835, feeder: 'Ihe 11kV', band: 'C', households: 1300, approx: true },
-  { id: 'edem', name: 'Edem', lat: 6.836, lng: 7.376, feeder: 'Ihe 11kV', band: 'D', households: 900, approx: true },
-  { id: 'enugurd', name: 'Enugu Road', lat: 6.8314, lng: 7.4066, feeder: 'Enugu Road 11kV', band: 'C', households: 980, approx: false },
-  { id: 'obukpa', name: 'Obukpa', lat: 6.9, lng: 7.415, feeder: 'Obukpa 11kV', band: 'D', households: 1500, approx: true },
-  { id: 'alor', name: 'Alor-Uno', lat: 6.883, lng: 7.433, feeder: 'Obukpa 11kV', band: 'D', households: 870, approx: true },
-  { id: 'orba', name: 'Orba', lat: 6.8568, lng: 7.4588, feeder: 'Orba 11kV', band: 'D', households: 1100, approx: false },
+  { id: 'unn', name: 'UNN Main Campus', lat: 6.8641, lng: 7.4097, feeder: 'UNN Campus 11kV', band: 'A', households: 2400, radius: 1100, approx: false },
+  { id: 'hilltop', name: 'Hilltop', lat: 6.8688, lng: 7.4158, feeder: 'UNN Campus 11kV', band: 'A', households: 920, radius: 450, approx: true },
+  { id: 'odim', name: 'Odim Gate', lat: 6.8716, lng: 7.4142, feeder: 'UNN Campus 11kV', band: 'B', households: 1100, radius: 250, approx: false },
+  { id: 'odenigwe', name: 'Odenigwe', lat: 6.8577, lng: 7.4028, feeder: 'Odenigwe 11kV', band: 'B', households: 1850, radius: 400, approx: true },
+  { id: 'beach', name: 'Beach Junction', lat: 6.8553, lng: 7.4052, feeder: 'Odenigwe 11kV', band: 'B', households: 640, radius: 250, approx: true },
+  { id: 'onuiyi', name: 'Onuiyi', lat: 6.8508, lng: 7.4128, feeder: 'Onuiyi 11kV', band: 'C', households: 1400, radius: 600, approx: true },
+  { id: 'ogige', name: 'Ogige Market', lat: 6.851, lng: 7.3994, feeder: 'Ogige 11kV', band: 'B', households: 760, radius: 350, approx: false },
+  { id: 'town', name: 'Nsukka Town', lat: 6.8561, lng: 7.3927, feeder: 'Town 11kV', band: 'B', households: 2100, radius: 800, approx: false },
+  { id: 'nru', name: 'Nru', lat: 6.864, lng: 7.385, feeder: 'Nru–Owerre 11kV', band: 'C', households: 1650, radius: 700, approx: true },
+  { id: 'ihe', name: 'Ihe', lat: 6.848, lng: 7.3835, feeder: 'Ihe 11kV', band: 'C', households: 1300, radius: 700, approx: true },
+  { id: 'edem', name: 'Edem', lat: 6.836, lng: 7.376, feeder: 'Ihe 11kV', band: 'D', households: 900, radius: 700, approx: true },
+  { id: 'enugurd', name: 'Enugu Road', lat: 6.8314, lng: 7.4066, feeder: 'Enugu Road 11kV', band: 'C', households: 980, radius: 900, approx: false },
+  { id: 'obukpa', name: 'Obukpa', lat: 6.9, lng: 7.415, feeder: 'Obukpa 11kV', band: 'D', households: 1500, radius: 1200, approx: true },
+  { id: 'alor', name: 'Alor-Uno', lat: 6.883, lng: 7.433, feeder: 'Obukpa 11kV', band: 'D', households: 870, radius: 900, approx: true },
+  { id: 'orba', name: 'Orba', lat: 6.8568, lng: 7.4588, feeder: 'Orba 11kV', band: 'D', households: 1100, radius: 1200, approx: false },
 ];
 
 export const areaById = Object.fromEntries(areas.map((a) => [a.id, a])) as Record<string, Area>;
 
-/** Closest known area to a point — stands in for a feeder-polygon lookup. */
+/**
+ * How far a point is from an area, scaled by the area's size. Plain
+ * centroid distance hands the edge of a big area (Hilltop) to a small
+ * neighbour whose centre happens to be closer (Odim Gate).
+ */
+export function areaScore(a: Area, p: { lat: number; lng: number }, meters = distanceMeters(a, p)) {
+  return meters / Math.sqrt(a.radius);
+}
+
+/** Best-matching area for a point — stands in for a feeder-polygon lookup. */
 export function nearestArea(p: { lat: number; lng: number }) {
-  return areas.reduce((best, a) => (distanceMeters(a, p) < distanceMeters(best, p) ? a : best));
+  return areas.reduce((best, a) => (areaScore(a, p) < areaScore(best, p) ? a : best));
 }
 
 export interface Substation {
@@ -135,7 +149,7 @@ export const substations: Substation[] = [
 export interface Crew {
   id: string;
   name: string;
-  lead: string;
+  /** The lead's name comes from the operations roster (useOperations().leadName). */
   status: CrewStatus;
   lat: number;
   lng: number;
@@ -151,10 +165,10 @@ export const crewStatusLabel: Record<CrewStatus, string> = {
 };
 
 export const crews: Crew[] = [
-  { id: 'c-alpha', name: 'Crew Alpha', lead: 'Chinedu Eze', status: 'available', lat: 6.8471, lng: 7.4021 },
-  { id: 'c-bravo', name: 'Crew Bravo', lead: 'Ifeanyi Ugwu', status: 'en_route', lat: 6.8528, lng: 7.4031, incidentId: 'inc-odenigwe', etaMinutes: 6 },
-  { id: 'c-charlie', name: 'Crew Charlie', lead: 'Ngozi Okafor', status: 'on_site', lat: 6.8684, lng: 7.4151, incidentId: 'inc-hilltop' },
-  { id: 'c-delta', name: 'Crew Delta', lead: 'Emeka Odo', status: 'available', lat: 6.8556, lng: 7.3936 },
+  { id: 'c-alpha', name: 'Crew Alpha', status: 'available', lat: 6.8471, lng: 7.4021 },
+  { id: 'c-bravo', name: 'Crew Bravo', status: 'en_route', lat: 6.8528, lng: 7.4031, incidentId: 'inc-odenigwe', etaMinutes: 6 },
+  { id: 'c-charlie', name: 'Crew Charlie', status: 'on_site', lat: 6.8684, lng: 7.4151, incidentId: 'inc-hilltop' },
+  { id: 'c-delta', name: 'Crew Delta', status: 'available', lat: 6.8556, lng: 7.3936 },
 ];
 
 /* ------------------------------------------------------------------ */

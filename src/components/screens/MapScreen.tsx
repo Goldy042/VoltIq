@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { BellRingIcon, LocateFixedIcon, PlusIcon, TruckIcon, UsersIcon, ZapOffIcon } from 'lucide-react';
 import { MapCanvas, type FlyTarget } from '@/components/map';
@@ -15,12 +15,13 @@ import { ButtonLink } from '@/components/ui/Button';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { IssueIcon } from '@/components/ui/Badges';
 import { useToast } from '@/components/ui/Toast';
-import { useOutageFeed } from '@/hooks/useOutageFeed';
+import { useSharedOutageFeed } from '@/hooks/useOutageFeed';
+import { LocationCheck } from '@/components/map/LocationCheck';
+import { locateBest, locateErrorText, type Fix } from '@/lib/locate';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
-import { describeLocation } from '@/lib/address';
+import { describeLocation, resolveArea } from '@/lib/address';
 import { placeName, useProfile } from '@/lib/profile';
 import {
-  NSUKKA_BOUNDS,
   areaById,
   issueMeta,
   predictions,
@@ -32,16 +33,18 @@ interface MapScreenProps {
   view: 'citizen' | 'operator';
   /** Incident or prediction id to open on arrival (from ?focus=). */
   initialFocus?: string;
+  /** Fill the parent (inside the operator shell) instead of the whole viewport. */
+  embedded?: boolean;
 }
 
 const severity = (i: Incident) =>
   i.status === 'restored' ? 9 : i.issue === 'no_power' ? (i.status === 'crew_dispatched' ? 2 : 0) : 1;
 
-export function MapScreen({ view, initialFocus }: MapScreenProps) {
+export function MapScreen({ view, initialFocus, embedded = false }: MapScreenProps) {
   const toast = useToast();
-  const { primary } = useProfile();
+  const { primary, correctArea } = useProfile();
   const desktop = useMediaQuery('(min-width: 1024px)');
-  const { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew } = useOutageFeed();
+  const { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew } = useSharedOutageFeed();
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MapFilter>('all');
@@ -124,26 +127,70 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFocus]);
 
+  const [fix, setFix] = useState<Fix | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  // Bumped after a correction so the match is recomputed with it.
+  const [correctionKey, setCorrectionKey] = useState(0);
+  const cancelLocate = useRef<() => void>(() => {});
+  useEffect(() => () => cancelLocate.current(), []);
+
+  const match = useMemo(
+    () => (fix ? resolveArea(fix, fix.accuracy) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fix, correctionKey],
+  );
+
   const locate = () => {
-    const fallback = () => {
-      const home = { lat: primary.lat, lng: primary.lng };
-      setUser(home);
-      setFlyTo({ ...home, zoom: 15.5, key: Date.now() });
-      toast({ title: `Showing your ${placeName(primary).toLowerCase()}`, body: describeLocation(primary).summary, icon: <LocateFixedIcon className="h-4 w-4" />, color: 'var(--accent)' });
-    };
-    if (!navigator.geolocation) return fallback();
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        const [w, s, e, n] = NSUKKA_BOUNDS;
-        const inside = coords.longitude > w && coords.longitude < e && coords.latitude > s && coords.latitude < n;
-        if (!inside) return fallback();
-        const here = { lat: coords.latitude, lng: coords.longitude };
-        setUser(here);
-        setFlyTo({ ...here, zoom: 16, key: Date.now() });
+    cancelLocate.current();
+    setLocating(true);
+    setCheckOpen(true);
+    setFix(null);
+    let first = true;
+    cancelLocate.current = locateBest({
+      onFix: (f) => {
+        setFix(f);
+        setUser({ lat: f.lat, lng: f.lng });
+        // Fly once on the first fix; later fixes just move the dot.
+        if (first) setFlyTo({ lat: f.lat, lng: f.lng, zoom: 16, key: Date.now() });
+        first = false;
       },
-      fallback,
-      { enableHighAccuracy: true, timeout: 6000 },
-    );
+      onDone: (f) => {
+        setLocating(false);
+        setFix(f);
+        setUser({ lat: f.lat, lng: f.lng });
+      },
+      onError: (err) => {
+        setLocating(false);
+        setCheckOpen(false);
+        setFix(null);
+        // Say plainly that this is the saved place, not where the phone is.
+        const home = { lat: primary.lat, lng: primary.lng };
+        if (view === 'citizen') {
+          setUser(home);
+          setFlyTo({ ...home, zoom: 15.5, key: Date.now() });
+        }
+        toast({
+          title: view === 'citizen' ? `Couldn’t find you — showing your ${placeName(primary).toLowerCase()}` : 'Couldn’t find your location',
+          body: locateErrorText[err],
+          icon: <LocateFixedIcon className="h-4 w-4" />,
+          color: 'var(--status-low)',
+        });
+      },
+    });
+  };
+
+  const pickArea = (areaId: string) => {
+    if (!fix) return;
+    correctArea(fix, areaId);
+    setCorrectionKey((k) => k + 1);
+    toast({
+      title: `Got it — ${areaById[areaId]?.name}`,
+      body: 'We’ll remember this for the spot you’re in.',
+      icon: <LocateFixedIcon className="h-4 w-4" />,
+      color: 'var(--accent)',
+    });
+    setCheckOpen(false);
   };
 
   const activeIncidents = incidents.filter((i) => i.status !== 'restored');
@@ -265,7 +312,7 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
   const panelWidth = 420;
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden bg-sunken">
+    <div className={`relative w-full overflow-hidden bg-sunken ${embedded ? 'h-full' : 'h-dvh'}`}>
       <div className="absolute inset-0">
         <MapCanvas
           incidents={visibleIncidents}
@@ -277,6 +324,7 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
           onSelect={select}
           flyTo={flyTo}
           user={user}
+          userAccuracy={fix?.accuracy}
           bump={lastEvent ? { incidentId: lastEvent.incidentId, key: lastEvent.key } : null}
           padding={desktop ? { left: panelWidth + 32 } : { bottom: sheetPx }}
         />
@@ -293,7 +341,7 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
           }}
           counts={counts}
           lastEvent={lastEvent}
-          backHref={view === 'operator' ? '/' : '/dashboard'}
+          backHref={view === 'operator' ? '/operator' : '/dashboard'}
         />
       </div>
 
@@ -308,6 +356,32 @@ export function MapScreen({ view, initialFocus }: MapScreenProps) {
       >
         <MapKey />
         <IconButton floating size="lg" label="Show my location" icon={<LocateFixedIcon className="h-5 w-5" />} onClick={locate} />
+      </div>
+
+      <div
+        className="absolute left-3 z-30 transition-[bottom,opacity] duration-300 ease-out lg:bottom-6 lg:left-auto lg:right-24"
+        style={
+          desktop
+            ? undefined
+            : { bottom: sheetPx + 12, opacity: snap === 'full' ? 0 : 1, pointerEvents: snap === 'full' ? 'none' : undefined }
+        }
+      >
+        <AnimatePresence>
+          {checkOpen && (
+            <LocationCheck
+              fix={fix}
+              match={match}
+              locating={locating}
+              summary={fix && match ? describeLocation(fix).summary : undefined}
+              onPick={pickArea}
+              onClose={() => {
+                cancelLocate.current();
+                setLocating(false);
+                setCheckOpen(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {desktop ? (
