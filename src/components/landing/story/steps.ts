@@ -20,10 +20,10 @@ export interface StoryStep {
   title: string;
   body?: string;
   camera: StoryCamera;
-  lights: { odenigwe: LightState; onuiyi: LightState; odim: LightState };
+  lights: { odenigwe: LightState; hilltop: LightState; odim: LightState };
   /** Odenigwe report dots (red) visible. */
   reports: boolean;
-  /** Onuiyi low-voltage report dots (orange) visible. */
+  /** Hilltop low-voltage report dots (orange) visible. */
   lowReports: boolean;
   crew: 'hidden' | 'driving' | 'arrived';
   restored: boolean;
@@ -31,7 +31,7 @@ export interface StoryStep {
 }
 
 const ODENIGWE = { lng: 7.4028, lat: 6.8577 };
-const ONUIYI = { lng: 7.4128, lat: 6.8508 };
+const HILLTOP = { lng: 7.4168, lat: 6.8551 };
 const ODIM = { lng: 7.415, lat: 6.8703 };
 
 export const steps: StoryStep[] = [
@@ -40,7 +40,7 @@ export const steps: StoryStep[] = [
     clock: '9:40 PM',
     title: 'Know before the light goes.',
     camera: { lng: 7.4005, lat: 6.859, zoom: 13.4, pitch: 35, bearing: -12 },
-    lights: { odenigwe: 'on', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'on', hilltop: 'on', odim: 'on' },
     reports: false, lowReports: false, crew: 'hidden', restored: false, forecast: false,
   },
   {
@@ -50,7 +50,7 @@ export const steps: StoryStep[] = [
     title: 'Every light here is a real home.',
     body: 'All 32,697 buildings mapped in Nsukka, from Ogige Market to Odim Gate. Tonight we follow one outage from the first report to the fix.',
     camera: { lng: 7.404, lat: 6.86, zoom: 14, pitch: 52, bearing: 18 },
-    lights: { odenigwe: 'on', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'on', hilltop: 'on', odim: 'on' },
     reports: false, lowReports: false, crew: 'hidden', restored: false, forecast: false,
   },
   {
@@ -60,7 +60,7 @@ export const steps: StoryStep[] = [
     title: 'Odenigwe goes dark.',
     body: 'A loud bang from the transformer near the UNN main gate. About 610 homes lose light at once.',
     camera: { ...ODENIGWE, zoom: 15.4, pitch: 56, bearing: -22 },
-    lights: { odenigwe: 'off', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'off', hilltop: 'on', odim: 'on' },
     reports: false, lowReports: false, crew: 'hidden', restored: false, forecast: false,
   },
   {
@@ -70,17 +70,17 @@ export const steps: StoryStep[] = [
     title: 'Chiamaka reports it. So do 46 neighbours.',
     body: 'One tap each. Every report lands on the same map, so nobody sits in the dark wondering if it’s only their house.',
     camera: { ...ODENIGWE, zoom: 15.9, pitch: 60, bearing: 8 },
-    lights: { odenigwe: 'off', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'off', hilltop: 'on', odim: 'on' },
     reports: true, lowReports: false, crew: 'hidden', restored: false, forecast: false,
   },
   {
     id: 'low',
     clock: '9:55 PM',
-    eyebrow: 'Onuiyi',
+    eyebrow: 'Hilltop',
     title: 'Some streets don’t go dark. They go weak.',
     body: 'Dim bulbs, slow fans, a fridge that won’t start. People log low voltage too, with the reading from their stabiliser: 142 V tonight, against the normal 230 V.',
-    camera: { ...ONUIYI, zoom: 15.3, pitch: 55, bearing: 32 },
-    lights: { odenigwe: 'off', onuiyi: 'low', odim: 'on' },
+    camera: { ...HILLTOP, zoom: 15.3, pitch: 55, bearing: 32 },
+    lights: { odenigwe: 'off', hilltop: 'low', odim: 'on' },
     reports: true, lowReports: true, crew: 'hidden', restored: false, forecast: false,
   },
   {
@@ -90,7 +90,7 @@ export const steps: StoryStep[] = [
     title: 'EEDC sees exactly where. A crew is already moving.',
     body: 'Crew Bravo leaves the Enugu Road injection substation for the 3 km drive to Odenigwe. Residents can follow the truck on the map.',
     camera: { lng: 7.3975, lat: 6.8525, zoom: 14.7, pitch: 45, bearing: -6 },
-    lights: { odenigwe: 'off', onuiyi: 'low', odim: 'on' },
+    lights: { odenigwe: 'off', hilltop: 'low', odim: 'on' },
     reports: true, lowReports: true, crew: 'driving', restored: false, forecast: false,
   },
   {
@@ -100,7 +100,7 @@ export const steps: StoryStep[] = [
     title: 'Light restored.',
     body: 'Everyone who reported gets a message the moment supply comes back. No calls and no guessing.',
     camera: { ...ODENIGWE, zoom: 15.3, pitch: 55, bearing: -38 },
-    lights: { odenigwe: 'on', onuiyi: 'low', odim: 'on' },
+    lights: { odenigwe: 'on', hilltop: 'low', odim: 'on' },
     reports: false, lowReports: true, crew: 'arrived', restored: true, forecast: false,
   },
   {
@@ -110,7 +110,7 @@ export const steps: StoryStep[] = [
     title: 'Next time, you hear first.',
     body: 'The UNN Campus feeder has overloaded three evenings in a row and rain is coming. Odim Gate is warned three hours early, with time to charge phones and pump water.',
     camera: { ...ODIM, zoom: 14.8, pitch: 50, bearing: 22 },
-    lights: { odenigwe: 'on', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'on', hilltop: 'on', odim: 'on' },
     reports: false, lowReports: false, crew: 'hidden', restored: false, forecast: true,
   },
   {
@@ -118,7 +118,7 @@ export const steps: StoryStep[] = [
     clock: 'Tomorrow, 4:00 PM',
     title: '',
     camera: { lng: 7.402, lat: 6.859, zoom: 13.1, pitch: 0, bearing: 0 },
-    lights: { odenigwe: 'on', onuiyi: 'on', odim: 'on' },
+    lights: { odenigwe: 'on', hilltop: 'on', odim: 'on' },
     reports: false, lowReports: false, crew: 'hidden', restored: false, forecast: true,
   },
 ];
@@ -142,6 +142,6 @@ export const crewRoute: [number, number][] = [
 /** Story areas whose lights change; everything else stays lit. */
 export const storyAreas = {
   odenigwe: { ...ODENIGWE, radius: 430 },
-  onuiyi: { ...ONUIYI, radius: 450 },
+  hilltop: { ...HILLTOP, radius: 300 },
   odim: { ...ODIM, radius: 560 },
 } as const;

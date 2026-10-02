@@ -181,8 +181,8 @@ test('area suggestions use residents’ corrections', { skip }, async () => {
 test('a drawn boundary beats corrections (Hilltop)', { skip }, async () => {
   const a = await makeUser();
   const b = await makeUser();
-  await R.recordAreaCorrection(db, a.id, hilltop, 'onuiyi', 'hilltop');
-  await R.recordAreaCorrection(db, b.id, hilltop, 'onuiyi', 'hilltop');
+  await R.recordAreaCorrection(db, a.id, hilltop, 'beach', 'hilltop');
+  await R.recordAreaCorrection(db, b.id, hilltop, 'beach', 'hilltop');
   assert.equal((await R.suggestAreas(db, hilltop, 0, a.id)).areas[0].slug, 'hilltop');
 });
 
