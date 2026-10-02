@@ -35,16 +35,16 @@ const ease = [0.23, 1, 0.32, 1] as const;
 export function ProfileScreen() {
   const toast = useToast();
   const { profile, primary, update, savePlace, removePlace, setPrimary } = useProfile();
-  const [details, setDetails] = useState({ name: profile.name, phone: profile.phone, email: profile.email });
-  const [errors, setErrors] = useState<{ name?: string; phone?: string; email?: string }>({});
+  const [details, setDetails] = useState({ name: profile.name, phone: profile.phone });
+  const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
   const [editing, setEditing] = useState<SavedPlace | 'new' | null>(null);
 
-  // Pick up the stored profile once it loads from the browser.
+  // Pick up the saved profile when it changes.
   useEffect(() => {
-    setDetails({ name: profile.name, phone: profile.phone, email: profile.email });
-  }, [profile.name, profile.phone, profile.email]);
+    setDetails({ name: profile.name, phone: profile.phone });
+  }, [profile.name, profile.phone]);
 
-  const dirty = details.name !== profile.name || details.phone !== profile.phone || details.email !== profile.email;
+  const dirty = details.name !== profile.name || details.phone !== profile.phone;
   const initials = profile.name.split(' ').map((p) => p[0]).slice(0, 2).join('');
   const confirmed = myReports.filter((r) => r.status !== 'reported').length;
 
@@ -54,11 +54,11 @@ export function ProfileScreen() {
     if (details.phone.trim() && details.phone.replace(/\D/g, '').length < 10) {
       next.phone = 'Enter a Nigerian mobile number, e.g. 0803 000 0000, or leave it empty.';
     }
-    if (!details.email.includes('@')) next.email = 'Enter a valid email address.';
     setErrors(next);
     if (Object.keys(next).length) return;
-    update({ name: details.name.trim(), phone: details.phone.trim(), email: details.email.trim() });
-    toast({ title: 'Details saved' });
+    update({ name: details.name.trim(), phone: details.phone.trim() })
+      .then(() => toast({ title: 'Details saved' }))
+      .catch((e: Error) => toast({ title: 'Couldn’t save', body: e.message }));
   };
 
   return (
@@ -126,7 +126,7 @@ export function ProfileScreen() {
                     </div>
                     <div className="mt-3 flex flex-wrap gap-1.5 border-t border-line pt-3">
                       {!isPrimary && (
-                        <SmallAction icon={<StarIcon className="h-3.5 w-3.5" />} onClick={() => setPrimary(p.id)}>
+                        <SmallAction icon={<StarIcon className="h-3.5 w-3.5" />} onClick={() => setPrimary(p.id).catch((e: Error) => toast({ title: 'Couldn’t save', body: e.message }))}>
                           Make default
                         </SmallAction>
                       )}
@@ -140,7 +140,7 @@ export function ProfileScreen() {
                         Copy code
                       </SmallAction>
                       {profile.places.length > 1 && (
-                        <SmallAction danger icon={<Trash2Icon className="h-3.5 w-3.5" />} onClick={() => removePlace(p.id)}>
+                        <SmallAction danger icon={<Trash2Icon className="h-3.5 w-3.5" />} onClick={() => removePlace(p.id).catch((e: Error) => toast({ title: 'Couldn’t remove', body: e.message }))}>
                           Remove
                         </SmallAction>
                       )}
@@ -168,7 +168,7 @@ export function ProfileScreen() {
         {/* Alerts */}
         <Section title="Alerts" hint="Changes save straight away.">
           <div className="-mx-3">
-            <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts })} />
+            <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts }).catch((e: Error) => toast({ title: 'Couldn’t save', body: e.message }))} />
           </div>
         </Section>
 
@@ -198,13 +198,12 @@ export function ProfileScreen() {
             />
             <TextField
               label="Email"
-              hint="For your account and repair updates."
-              placeholder="you@example.com"
+              hint="You sign in with this. Changing it isn’t available yet."
               type="email"
               leading={<MailIcon className="h-5 w-5" />}
-              value={details.email}
-              error={errors.email}
-              onChange={(e) => setDetails((d) => ({ ...d, email: e.target.value }))}
+              value={profile.email}
+              readOnly
+              disabled
             />
             <Button full size="lg" disabled={!dirty} onClick={saveDetails}>
               {dirty ? 'Save details' : 'Saved'}
@@ -255,9 +254,14 @@ export function ProfileScreen() {
                 defaultLabel={editing === 'new' ? 'hostel' : undefined}
                 saveText={editing === 'new' ? 'Save place' : 'Save changes'}
                 onSave={(p) => {
-                  savePlace(p);
+                  const added = editing === 'new';
                   setEditing(null);
-                  toast({ title: editing === 'new' ? 'Place added' : 'Place updated', body: describeLocation(p).summary });
+                  savePlace(p)
+                    .then(() => toast({ title: added ? 'Place added' : 'Place updated', body: describeLocation(p).summary }))
+                    .catch((e: Error) => {
+                      toast({ title: 'Couldn’t save', body: e.message });
+                      setEditing(added ? 'new' : p);
+                    });
                 }}
                 onCancel={() => setEditing(null)}
               />

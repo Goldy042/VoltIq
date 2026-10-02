@@ -16,8 +16,40 @@ export const relations = defineRelations(schema, (r) => ({
       to: r.teams.id,
       alias: "members",
     }),
-    reports: r.many.outageReports(),
+    reports: r.many.outageReports({ alias: "reporter" }),
     notifications: r.many.notifications(),
+    places: r.many.savedPlaces(),
+    trustEvents: r.many.trustEvents(),
+  },
+
+  savedPlaces: {
+    user: r.one.users({
+      from: r.savedPlaces.userId,
+      to: r.users.id,
+    }),
+    area: r.one.areas({
+      from: r.savedPlaces.areaId,
+      to: r.areas.id,
+    }),
+  },
+
+  incidents: {
+    area: r.one.areas({
+      from: r.incidents.areaId,
+      to: r.areas.id,
+    }),
+    reports: r.many.outageReports(),
+  },
+
+  trustEvents: {
+    user: r.one.users({
+      from: r.trustEvents.userId,
+      to: r.users.id,
+    }),
+    report: r.one.outageReports({
+      from: r.trustEvents.reportId,
+      to: r.outageReports.id,
+    }),
   },
 
   distributionCompanies: {
@@ -70,6 +102,11 @@ export const relations = defineRelations(schema, (r) => ({
     user: r.one.users({
       from: r.outageReports.userId,
       to: r.users.id,
+      alias: "reporter",
+    }),
+    incident: r.one.incidents({
+      from: r.outageReports.incidentId,
+      to: r.incidents.id,
     }),
     area: r.one.areas({
       from: r.outageReports.areaId,

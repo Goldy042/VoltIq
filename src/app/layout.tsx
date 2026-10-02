@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
 import { IBM_Plex_Sans, Schibsted_Grotesk } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ProfileProvider } from '@/lib/profile';
+import { getDb } from '@/lib/db/client';
+import { loadProfile } from '@/server/profile';
+import { getCurrentUser } from '@/server/users';
 import { OperationsProvider } from '@/lib/operations';
 import './globals.css';
 
@@ -35,9 +39,12 @@ export const viewport: Viewport = {
   themeColor: '#f3f3f0',
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // Signed-in people get their real profile on first paint; visitors get the demo.
+  const user = await getCurrentUser();
+  const initial = user ? await loadProfile(getDb(), user) : null;
   return (
     <html
       lang="en"
@@ -47,11 +54,13 @@ export default function RootLayout({
     >
       {/* Browser extensions (e.g. Grammarly) add attributes to <html>/<body> before hydration. */}
       <body suppressHydrationWarning className="min-h-full w-full bg-canvas font-body text-ink">
-        <ProfileProvider>
-          <OperationsProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </OperationsProvider>
-        </ProfileProvider>
+        <ClerkProvider signInUrl="/login" signUpUrl="/signup">
+          <ProfileProvider initial={initial}>
+            <OperationsProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </OperationsProvider>
+          </ProfileProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -21,6 +21,7 @@ import { PlacePicker } from '@/components/places/PlacePicker';
 import { areaById, incidents, issueMeta, predictions } from '@/data/nsukka';
 import { describeLocation } from '@/lib/address';
 import { placeName, useProfile, type SavedPlace } from '@/lib/profile';
+import { useToast } from '@/components/ui/Toast';
 
 type Step = 0 | 1 | 2 | 3;
 const ease = [0.23, 1, 0.32, 1] as const;
@@ -38,6 +39,10 @@ export function OnboardingScreen() {
   const [dir, setDir] = useState(1);
   const [editing, setEditing] = useState<SavedPlace | 'new' | null>(profile.places.length ? null : 'new');
   const first = profile.name.split(' ')[0] || 'there';
+  // Nothing saved yet: go straight to the picker rather than an empty list.
+  useEffect(() => {
+    if (!profile.places.length && editing === null) setEditing('new');
+  }, [profile.places.length, editing]);
 
   const go = (s: Step) => {
     setDir(s > step ? 1 : -1);
@@ -45,9 +50,20 @@ export function OnboardingScreen() {
     window.scrollTo({ top: 0 });
   };
 
-  const finish = () => {
-    update({ onboarded: true });
-    router.push('/dashboard');
+  const toast = useToast();
+  const [finishing, setFinishing] = useState(false);
+  const fail = (e: unknown) => toast({ title: 'Couldn’t save', body: e instanceof Error ? e.message : 'Try again.', color: 'var(--status-out)' });
+
+  const finish = async () => {
+    setFinishing(true);
+    try {
+      await update({ onboarded: true });
+      router.replace('/dashboard');
+      router.refresh();
+    } catch (e) {
+      setFinishing(false);
+      fail(e);
+    }
   };
 
   const showBar = !(step === 1 && editing);
@@ -154,8 +170,11 @@ export function OnboardingScreen() {
                     defaultLabel={profile.places.length ? 'hostel' : 'home'}
                     saveText={editing === 'new' ? 'Save this place' : 'Save changes'}
                     onSave={(p) => {
-                      savePlace(p);
                       setEditing(null);
+                      savePlace(p).catch((e) => {
+                        fail(e);
+                        setEditing(p);
+                      });
                     }}
                     onCancel={profile.places.length ? () => setEditing(null) : undefined}
                   />
@@ -179,7 +198,7 @@ export function OnboardingScreen() {
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.97 }}
                       >
-                        <PlaceRow place={p} onEdit={() => setEditing(p)} onRemove={() => removePlace(p.id)} />
+                        <PlaceRow place={p} onEdit={() => setEditing(p)} onRemove={() => removePlace(p.id).catch(fail)} />
                       </motion.li>
                     ))}
                   </AnimatePresence>
@@ -207,7 +226,7 @@ export function OnboardingScreen() {
                   Email and app notifications are free. Turn on SMS only if you’re often without data.
                 </p>
                 <div className="-mx-3 mt-6">
-                  <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts })} />
+                  <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts }).catch(fail)} />
                 </div>
               </div>
             )}
@@ -236,7 +255,7 @@ export function OnboardingScreen() {
               </Button>
             )}
             {step === 3 && (
-              <Button full size="lg" onClick={finish}>
+              <Button full size="lg" onClick={finish} loading={finishing}>
                 Go to my dashboard
               </Button>
             )}

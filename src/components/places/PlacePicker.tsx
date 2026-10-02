@@ -28,7 +28,10 @@ import { NSUKKA_CENTER, bandHours } from '@/data/nsukka';
 import type { LandmarkKind } from '@/data/landmarks';
 import { describeLocation, resolveArea, searchPlaces, type SearchResult } from '@/lib/address';
 import { locateBest, locateErrorText, ROUGH_FIX_METERS } from '@/lib/locate';
-import { placeLabels, type PlaceLabel, type SavedPlace } from '@/lib/profile';
+import { placeLabels, useProfile, type PlaceLabel, type SavedPlace } from '@/lib/profile';
+import { areaById } from '@/data/nsukka';
+import { distanceMeters } from '@/lib/geo';
+import type { Fix } from '@/lib/locate';
 
 const kindIcon: Record<LandmarkKind, React.ElementType> = {
   gate: DoorOpenIcon,
@@ -81,10 +84,21 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
   const [errors, setErrors] = useState<{ pin?: string; name?: string; meter?: string }>({});
   const [copied, setCopied] = useState(false);
 
+  // Last GPS fix; dropped once the pin is dragged further than its error.
+  const [fix, setFix] = useState<Fix | null>(null);
+  const gps = fix && distanceMeters(fix, pos) <= Math.max(fix.accuracy, 30) ? fix : null;
+  // Area the resident picked when our guess was wrong or unsure.
+  const [chosenArea, setChosenArea] = useState<string | null>(null);
+  const { correctArea } = useProfile();
+
   const results = useMemo(() => searchPlaces(query), [query]);
   const place = useMemo(() => describeLocation(pos), [pos]);
+  const match = useMemo(() => resolveArea(pos, gps?.accuracy ?? 0), [pos, gps?.accuracy]);
+  const areaOptions = [match.area, ...match.alternatives];
+  const area = (chosenArea && areaById[chosenArea]) || match.area;
 
   const jumpTo = (p: { lat: number; lng: number }) => {
+    setChosenArea(null);
     setPos(p);
     setTouched(true);
     setRecenter(Date.now());
@@ -101,9 +115,13 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
     setLocating(true);
     setGpsNote({ tone: 'ok', text: 'Finding you… GPS gets sharper over a few seconds.' });
     locateBest({
-      onFix: (fix) => jumpTo({ lat: fix.lat, lng: fix.lng }),
+      onFix: (f) => {
+        setFix(f);
+        jumpTo({ lat: f.lat, lng: f.lng });
+      },
       onDone: (fix) => {
         setLocating(false);
+        setFix(fix);
         jumpTo({ lat: fix.lat, lng: fix.lng });
         const acc = Math.round(fix.accuracy);
         const match = resolveArea(fix, fix.accuracy);
@@ -127,13 +145,18 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
     if (meter && meter.replace(/\D/g, '').length < 11) next.meter = 'Meter numbers are usually 11 or 13 digits.';
     setErrors(next);
     if (Object.keys(next).length) return;
+    // Teach the area guess for this spot when the resident corrected it.
+    if (chosenArea && chosenArea !== match.area.id) {
+      correctArea({ ...pos, accuracy: gps?.accuracy }, chosenArea, match.area.id).catch(() => {});
+    }
     onSave({
       id: initial?.id ?? `place-${Date.now()}`,
       label,
       customName: label === 'other' ? customName.trim() : undefined,
       lat: pos.lat,
       lng: pos.lng,
-      areaId: place.area.id,
+      areaId: area.id,
+      accuracy: gps ? Math.round(gps.accuracy) : undefined,
       directions: directions.trim(),
       plusCode: place.plusCode,
       meterNumber: meter.replace(/\D/g, '') || undefined,
@@ -263,6 +286,7 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
             onChange={(p) => {
               setPos(p);
               setTouched(true);
+              setChosenArea(null);
               setErrors((e) => ({ ...e, pin: undefined }));
             }}
           />
@@ -276,7 +300,7 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
 
         {/* Live address, written by the app */}
         <motion.div
-          key={`${place.area.id}-${place.landmark?.id}`}
+          key={`${area.id}-${place.landmark?.id}`}
           initial={{ opacity: 0.5, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           className="mt-3 rounded-lg bg-canvas p-4"
@@ -287,7 +311,7 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
             <div className="min-w-0 flex-1">
               <p className="font-body text-sm font-semibold text-ink">{touched ? place.summary : 'Pick a spot to see its address'}</p>
               <p className="mt-0.5 font-body text-xs text-ink-muted">
-                {place.area.name} · {place.area.feeder} · Band {place.area.band} ({bandHours[place.area.band]} hrs/day promised)
+                {area.name} · {area.feeder} · Band {area.band} ({bandHours[area.band]} hrs/day promised)
               </p>
             </div>
           </div>
@@ -311,6 +335,42 @@ export function PlacePicker({ initial, defaultLabel = 'home', saveText, onSave, 
           </div>
         </motion.div>
       </div>
+
+      {touched && (
+        <fieldset>
+          <legend className="font-body text-sm font-medium text-ink">
+            {match.confident || chosenArea ? 'Area' : 'Which area is this in?'}
+          </legend>
+          <p className={cn('mt-1 font-body text-xs', match.confident || chosenArea ? 'text-ink-faint' : 'text-status-low')}>
+            {match.confident || chosenArea
+              ? 'Wrong? Pick the right one and we’ll remember it for this spot.'
+              : gps && gps.accuracy > ROUGH_FIX_METERS
+                ? `Your location is rough (±${Math.round(gps.accuracy)} m), so we’re not sure. Pick yours.`
+                : 'This spot is near a boundary. Pick the area people would say it’s in.'}
+          </p>
+          <div role="radiogroup" className="mt-2 flex flex-wrap gap-1.5">
+            {[...areaOptions, ...(chosenArea && !areaOptions.some((a) => a.id === chosenArea) ? [areaById[chosenArea]] : [])].map((a) => {
+              const active = a.id === area.id;
+              return (
+                <button
+                  key={a.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => setChosenArea(a.id)}
+                  className={cn(
+                    'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium transition-colors',
+                    active ? 'bg-ink text-canvas' : 'border border-line-strong bg-surface text-ink hover:border-ink',
+                  )}
+                >
+                  {active && <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {a.name}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
 
       {/* 3. Describe it */}
       <fieldset>

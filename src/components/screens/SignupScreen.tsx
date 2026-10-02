@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useSignUp } from '@clerk/nextjs';
+import { clerkMessage, goAfterAuth } from '@/components/auth/clerk';
 import { ArrowLeftIcon, MailIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
@@ -10,7 +11,6 @@ import { OtpInput } from '@/components/ui/OtpInput';
 import { PasswordField } from '@/components/ui/PasswordField';
 import { PhoneField, isNigerianMobile } from '@/components/ui/PhoneField';
 import { TextField } from '@/components/ui/TextField';
-import { useProfile } from '@/lib/profile';
 
 interface Form {
   name: string;
@@ -28,8 +28,7 @@ const pretty = (d: string) => (d ? `+234 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.s
  * One verified email per reporter is the first line of defence against fake reports.
  */
 export function SignupScreen() {
-  const router = useRouter();
-  const { startNew } = useProfile();
+  const { signUp } = useSignUp();
   const [stage, setStage] = useState<'details' | 'verify'>('details');
   const [form, setForm] = useState<Form>({ name: '', email: '', phone: '', password: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof Form | 'code', string>>>({});
@@ -48,32 +47,65 @@ export function SignupScreen() {
     setErrors((er) => ({ ...er, [key]: undefined }));
   };
 
-  const submitDetails = (e: React.FormEvent) => {
+  const submitDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: typeof errors = {};
     if (form.name.trim().length < 2) next.name = 'Enter your name as people know you.';
     if (!isEmail(form.email)) next.email = 'Enter a valid email, e.g. you@example.com.';
     if (form.phone && !isNigerianMobile(form.phone)) next.phone = 'Enter the 10 digits after +234, or leave it empty.';
-    if (form.password.length < 6) next.password = 'Use at least 6 characters.';
+    if (form.password.length < 8) next.password = 'Use at least 8 characters.';
     setErrors(next);
     if (Object.keys(next).length) return;
     setPending(true);
-    window.setTimeout(() => {
+    const [firstName, ...rest] = form.name.trim().split(/\s+/);
+    const created = await signUp.password({
+      emailAddress: form.email.trim(),
+      password: form.password,
+      firstName,
+      lastName: rest.join(' ') || undefined,
+      // Phone isn't a Clerk sign-in method here; our API copies it onto the user row.
+      unsafeMetadata: form.phone ? { phone: pretty(form.phone) } : undefined,
+      legalAccepted: true,
+    });
+    if (created.error) {
       setPending(false);
-      setCode('');
-      setResendIn(30);
-      setStage('verify');
-    }, 500);
+      const msg = clerkMessage(created.error);
+      const code = created.error.code ?? '';
+      if (code.includes('password')) setErrors({ password: msg });
+      else setErrors({ email: msg });
+      return;
+    }
+    const sent = await signUp.verifications.sendEmailCode();
+    setPending(false);
+    if (sent.error) return setErrors({ email: clerkMessage(sent.error) });
+    setCode('');
+    setResendIn(30);
+    setStage('verify');
   };
 
-  const verify = (value = code) => {
+  const verify = async (value = code) => {
     if (value.length < 6) {
       setErrors({ code: 'Enter all 6 digits.' });
       return;
     }
     setPending(true);
-    startNew({ name: form.name.trim(), email: form.email.trim(), phone: pretty(form.phone) });
-    window.setTimeout(() => router.push('/onboarding'), 600);
+    const { error } = await signUp.verifications.verifyEmailCode({ code: value });
+    if (error) {
+      setPending(false);
+      return setErrors({ code: clerkMessage(error) });
+    }
+    if (signUp.status !== 'complete') {
+      setPending(false);
+      return setErrors({ code: 'Almost there, but your account isn’t finished. Go back and check your details.' });
+    }
+    // /auth/continue creates the VoltIq account and sends them to onboarding.
+    await signUp.finalize({ navigate: goAfterAuth() });
+  };
+
+  const resend = async () => {
+    const { error } = await signUp.verifications.sendEmailCode();
+    if (error) return setErrors({ code: clerkMessage(error) });
+    setResendIn(30);
   };
 
   if (stage === 'verify') {
@@ -105,7 +137,7 @@ export function SignupScreen() {
         >
           <OtpInput
             label="6-digit code"
-            hint="Check your spam folder if it isn’t there in a minute. Demo: any 6 digits work."
+            hint="Check your spam folder if it isn’t there in a minute."
             value={code}
             error={errors.code}
             onChange={(c) => {
@@ -121,7 +153,7 @@ export function SignupScreen() {
             {resendIn > 0 ? (
               <>Resend code in 0:{String(resendIn).padStart(2, '0')}</>
             ) : (
-              <button type="button" onClick={() => setResendIn(30)} className="font-semibold text-accent hover:underline">
+              <button type="button" onClick={resend} className="font-semibold text-accent hover:underline">
                 Resend code
               </button>
             )}
@@ -174,7 +206,7 @@ export function SignupScreen() {
         />
         <PasswordField
           label="Password"
-          hint="At least 6 characters. Mixing letters and numbers makes it stronger."
+          hint="At least 8 characters. Mixing letters and numbers makes it stronger."
           placeholder="Create a password"
           autoComplete="new-password"
           value={form.password}
@@ -190,6 +222,8 @@ export function SignupScreen() {
           onChange={set('phone')}
           optional
         />
+        {/* Clerk's bot check renders here when it decides a visitor needs one. */}
+        <div id="clerk-captcha" />
         <Button type="submit" size="lg" full loading={pending}>
           {pending ? 'Sending code…' : 'Continue'}
         </Button>
