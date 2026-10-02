@@ -19,6 +19,7 @@ import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { useOutageFeed } from '@/hooks/useOutageFeed';
 import {
   areaById,
+  nearestArea,
   bandHours,
   hourlyOutlook,
   issueMeta,
@@ -31,6 +32,7 @@ import {
 import { distanceMeters, formatAgo } from '@/lib/geo';
 import { describeLocation } from '@/lib/address';
 import { placeName, useProfile } from '@/lib/profile';
+import { LightBackPrompt } from '@/components/dashboard/LightBackPrompt';
 
 const StreetGlow = dynamic(() => import('@/components/dashboard/StreetGlow').then((m) => m.StreetGlow), {
   ssr: false,
@@ -66,10 +68,11 @@ export function DashboardScreen() {
 
   const { profile, primary } = useProfile();
   const home = useMemo(() => ({ lat: primary.lat, lng: primary.lng }), [primary.lat, primary.lng]);
-  const area = areaById[primary.areaId];
-  const mine = incidents.find((i) => i.areaId === primary.areaId && i.status !== 'restored');
+  // A place saved before areas were seeded may have no area yet; fall back to the nearest.
+  const area = areaById[primary.areaId] ?? nearestArea(primary);
+  const mine = incidents.find((i) => i.areaId === area.id && i.status !== 'restored');
   const crew = mine?.crewId ? crews.find((c) => c.id === mine.crewId) : undefined;
-  const forecast = predictions.find((p) => p.areaId === primary.areaId || p.area.includes(area.name));
+  const forecast = predictions.find((p) => p.areaId === area.id || p.area.includes(area.name));
   const status = statusWord(mine);
   const first = profile.name.split(' ')[0];
 
@@ -119,6 +122,7 @@ export function DashboardScreen() {
   return (
     <div className="min-h-dvh bg-canvas pb-28 lg:pb-16">
       <AppHeader tone={pastHero ? 'day' : 'night'} />
+      <LightBackPrompt />
 
       {/* ---- Hero: your street, tonight ---- */}
       <section ref={heroRef} aria-labelledby="status-word" className="relative bg-[#0b0b0d] text-white lg:h-[600px]">

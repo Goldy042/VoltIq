@@ -10,6 +10,8 @@ import {
   real,
   boolean,
   index,
+  uniqueIndex,
+  jsonb,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
@@ -57,6 +59,23 @@ export const dispatchStatusEnum = pgEnum("dispatch_status", [
   "completed",
 ]);
 
+// An outage as EEDC sees it: many reports merged into one fault. Mirrors
+// IncidentStatus in the app.
+export const incidentStatusEnum = pgEnum("incident_status", [
+  "reported",
+  "confirmed",
+  "crew_dispatched",
+  "restored",
+]);
+
+export const placeLabelEnum = pgEnum("place_label", [
+  "home",
+  "hostel",
+  "shop",
+  "work",
+  "other",
+]);
+
 export const notificationTypeEnum = pgEnum("notification_type", [
   "predicted_outage",
   "report_confirmed",
@@ -70,6 +89,8 @@ export const notificationTypeEnum = pgEnum("notification_type", [
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
+  // Clerk owns sign-in; this row is created the first time a Clerk user hits the API
+  clerkUserId: varchar("clerk_user_id", { length: 64 }).unique(),
   name: varchar("name", { length: 120 }).notNull(),
   email: varchar("email", { length: 255 }).notNull().unique(),
   phone: varchar("phone", { length: 20 }),
@@ -86,9 +107,47 @@ export const users = pgTable("users", {
   teamId: uuid("team_id").references((): AnyPgColumn => teams.id),
   // Set by a manager; nothing tracks shifts automatically
   onShift: boolean("on_shift").default(false).notNull(),
+  // Set when the resident finishes onboarding (at least one saved place)
+  onboardedAt: timestamp("onboarded_at"),
+  // Which alerts and channels they want — see AlertPrefs in src/lib/profile.tsx
+  alertPrefs: jsonb("alert_prefs").$type<Record<string, boolean>>(),
+  // 0–100. Starts at 50, rises when reports are corroborated or confirmed,
+  // falls when EEDC marks them false. Weights reports and sets rate limits.
+  trustScore: integer("trust_score").default(50).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+/* ------------------------------------------------------------------ */
+/* SAVED PLACES                                                       */
+/* ------------------------------------------------------------------ */
+
+// Home, hostel, shop… Always a coordinate; everything people read is derived.
+export const savedPlaces = pgTable(
+  "saved_places",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    label: placeLabelEnum("label").notNull(),
+    customName: varchar("custom_name", { length: 60 }),
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    // GPS error when the pin came from the phone; null when placed by hand
+    accuracyM: real("accuracy_m"),
+    areaId: uuid("area_id").references(() => areas.id),
+    directions: text("directions").default("").notNull(),
+    plusCode: varchar("plus_code", { length: 32 }).notNull(),
+    meterNumber: varchar("meter_number", { length: 20 }),
+    isPrimary: boolean("is_primary").default(false).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("saved_places_user_idx").on(table.userId),
+  })
+);
 
 /* ------------------------------------------------------------------ */
 /* AREAS (neighborhood / feeder zones used to cluster reports)        */
@@ -96,7 +155,13 @@ export const users = pgTable("users", {
 
 export const areas = pgTable("areas", {
   id: uuid("id").defaultRandom().primaryKey(),
+  // Stable id the app uses ("hilltop", "odim"); seeded from src/data/nsukka.ts
+  slug: varchar("slug", { length: 40 }).notNull().unique(),
   name: varchar("name", { length: 150 }).notNull(),
+  feeder: varchar("feeder", { length: 80 }),
+  // NERC service band A–D
+  band: varchar("band", { length: 1 }),
+  households: integer("households"),
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 100 }),
   // Simple centroid + radius model to start; can migrate to PostGIS geometry later
@@ -141,6 +206,40 @@ export const teams = pgTable("teams", {
 });
 
 /* ------------------------------------------------------------------ */
+/* INCIDENTS (one fault; many reports merge into it)                  */
+/* ------------------------------------------------------------------ */
+
+export const incidents = pgTable(
+  "incidents",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    areaId: uuid("area_id")
+      .references(() => areas.id)
+      .notNull(),
+    issueType: issueTypeEnum("issue_type").notNull(),
+    status: incidentStatusEnum("status").default("reported").notNull(),
+    centerLat: doublePrecision("center_lat").notNull(),
+    centerLng: doublePrecision("center_lng").notNull(),
+    radiusM: integer("radius_m").default(200).notNull(),
+    // Sum of report weights (trust-based; flagged reports count 0)
+    weightedReports: real("weighted_reports").default(0).notNull(),
+    // Distinct residents who reported it / said their light is back
+    reporterCount: integer("reporter_count").default(0).notNull(),
+    lightBackCount: integer("light_back_count").default(0).notNull(),
+    startedAt: timestamp("started_at").notNull(),
+    lastReportAt: timestamp("last_report_at").notNull(),
+    confirmedAt: timestamp("confirmed_at"),
+    restoredAt: timestamp("restored_at"),
+    // "community" when enough residents said the light is back, "eedc" when staff closed it
+    restoredBy: varchar("restored_by", { length: 16 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    areaStatusIdx: index("incidents_area_status_idx").on(table.areaId, table.status),
+  })
+);
+
+/* ------------------------------------------------------------------ */
 /* OUTAGE REPORTS (citizen-submitted)                                 */
 /* ------------------------------------------------------------------ */
 
@@ -164,6 +263,28 @@ export const outageReports = pgTable(
     status: reportStatusEnum("status").default("reported").notNull(),
     outageStartedAt: timestamp("outage_started_at").notNull(),
     resolvedAt: timestamp("resolved_at"),
+    incidentId: uuid("incident_id").references(() => incidents.id),
+    // Where the phone was when the report was sent (the pin can be dragged elsewhere)
+    deviceLat: doublePrecision("device_lat"),
+    deviceLng: doublePrecision("device_lng"),
+    deviceAccuracyM: real("device_accuracy_m"),
+    landmark: varchar("landmark", { length: 160 }),
+    // Same person reporting the same outage again: we bump these instead of adding a row
+    repeatCount: integer("repeat_count").default(0).notNull(),
+    lastConfirmedAt: timestamp("last_confirmed_at").defaultNow().notNull(),
+    // The resident told us their light came back
+    lightBackAt: timestamp("light_back_at"),
+    // Abuse checks: why the report looks off, and how much (0–100+). Flagged
+    // reports are kept but carry no weight until EEDC reviews them.
+    flags: text("flags").array().default([]).notNull(),
+    suspicionScore: integer("suspicion_score").default(0).notNull(),
+    flagged: boolean("flagged").default(false).notNull(),
+    // Weight this report added to its incident (trust-based)
+    weight: real("weight").default(1).notNull(),
+    reviewedAt: timestamp("reviewed_at"),
+    reviewedById: uuid("reviewed_by_id").references((): AnyPgColumn => users.id),
+    // Salted hash of the sender's IP, only for rate limiting
+    ipHash: varchar("ip_hash", { length: 64 }),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -172,6 +293,33 @@ export const outageReports = pgTable(
       table.areaId,
       table.status
     ),
+    userCreatedIdx: index("outage_reports_user_created_idx").on(table.userId, table.createdAt),
+    incidentIdx: index("outage_reports_incident_idx").on(table.incidentId),
+    ipCreatedIdx: index("outage_reports_ip_created_idx").on(table.ipHash, table.createdAt),
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* TRUST EVENTS (why a resident's trust score moved)                  */
+/* ------------------------------------------------------------------ */
+
+export const trustEvents = pgTable(
+  "trust_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    delta: integer("delta").notNull(),
+    // corroborated | accepted | false_report | …
+    reason: varchar("reason", { length: 32 }).notNull(),
+    reportId: uuid("report_id").references(() => outageReports.id),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("trust_events_user_idx").on(table.userId),
+    // One event of each kind per report, so retries can't double-count
+    onePerReport: uniqueIndex("trust_events_report_reason_uq").on(table.reportId, table.reason),
   })
 );
 

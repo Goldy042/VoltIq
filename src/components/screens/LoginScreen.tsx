@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useSignIn } from '@clerk/nextjs';
+import { clerkMessage, goAfterAuth } from '@/components/auth/clerk';
 import { ArrowLeftIcon, BuildingIcon, MailIcon } from 'lucide-react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +27,6 @@ function Divider() {
 
 /** Email-first sign-in: password, or a one-time code sent by email (free to send, unlike SMS). */
 export function LoginScreen() {
-  const router = useRouter();
   const [mode, setMode] = useState<Mode>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,44 +44,87 @@ export function LoginScreen() {
   const switchMode = (m: Mode) => {
     setErrors({});
     setPending(false);
+    if (m !== 'otp') setSecondFactor(false);
     setMode(m);
   };
 
-  const finish = (to: string) => {
-    setPending(true);
-    window.setTimeout(() => router.push(to), 600);
+  const { signIn } = useSignIn();
+  // New device without MFA: Clerk asks for an emailed code after the password.
+  const [secondFactor, setSecondFactor] = useState(false);
+
+  const finish = async () => {
+    if (signIn.status !== 'complete') return false;
+    await signIn.finalize({ navigate: goAfterAuth() });
+    return true;
   };
 
-  const submitPassword = (e: React.FormEvent) => {
+  const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     const next = {
       email: isEmail(email) ? undefined : 'Enter the email you signed up with.',
-      password: password.length < 6 ? 'Your password is at least 6 characters.' : undefined,
+      password: password ? undefined : 'Enter your password.',
     };
     setErrors(next);
     if (next.email || next.password) return;
-    finish(mode === 'staff' ? '/operator' : '/dashboard');
+    setPending(true);
+    const { error } = await signIn.password({ emailAddress: email.trim(), password });
+    if (error) {
+      setPending(false);
+      const msg = clerkMessage(error);
+      setErrors(error.code === 'form_identifier_not_found' ? { email: msg } : { password: msg });
+      return;
+    }
+    if (await finish()) return;
+    if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
+      const sent = await signIn.mfa.sendEmailCode();
+      setPending(false);
+      if (sent.error) return setErrors({ password: clerkMessage(sent.error) });
+      setSecondFactor(true);
+      setCode('');
+      setResendIn(30);
+      setMode('otp');
+      return;
+    }
+    setPending(false);
+    setErrors({ password: 'This account needs a sign-in step we don’t support yet. Use “Email me a sign-in code”.' });
   };
 
-  const sendCode = (e?: React.FormEvent) => {
+  const sendCode = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isEmail(email)) {
       setErrors({ email: 'Enter the email you signed up with.' });
       return;
     }
     setErrors({});
+    setPending(true);
+    const { error } = secondFactor ? await signIn.mfa.sendEmailCode() : await signIn.emailCode.sendCode({ emailAddress: email.trim() });
+    setPending(false);
+    if (error) {
+      setErrors(mode === 'otp' ? { code: clerkMessage(error) } : { email: clerkMessage(error) });
+      return;
+    }
     setCode('');
     setResendIn(30);
-    switchMode('otp');
+    setMode('otp');
   };
 
-  const verify = (value = code) => {
+  const verify = async (value = code) => {
     if (value.length < 6) {
       setErrors({ code: 'Enter all 6 digits.' });
       return;
     }
     setErrors({});
-    finish('/dashboard');
+    setPending(true);
+    const { error } = secondFactor ? await signIn.mfa.verifyEmailCode({ code: value }) : await signIn.emailCode.verifyCode({ code: value });
+    if (error) {
+      setPending(false);
+      setErrors({ code: clerkMessage(error) });
+      return;
+    }
+    if (!(await finish())) {
+      setPending(false);
+      setErrors({ code: 'That didn’t finish signing you in. Try again.' });
+    }
   };
 
   const copy: Record<Mode, { title: string; intro: React.ReactNode }> = {
@@ -200,7 +243,7 @@ export function LoginScreen() {
       {mode === 'code' && (
         <form onSubmit={sendCode} noValidate className="space-y-5">
           {emailField(true)}
-          <Button type="submit" size="lg" full>
+          <Button type="submit" size="lg" full loading={pending}>
             Send code
           </Button>
         </form>
@@ -217,7 +260,7 @@ export function LoginScreen() {
         >
           <OtpInput
             label="6-digit code"
-            hint="Check your spam folder if it isn’t there in a minute. Demo: any 6 digits work."
+            hint="Check your spam folder if it isn’t there in a minute."
             value={code}
             error={errors.code}
             onChange={(c) => {

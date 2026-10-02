@@ -77,10 +77,10 @@ export interface AreaMatch {
  * as an alternative, so a rough fix asks "Hilltop or Odim Gate?" instead of
  * confidently guessing wrong.
  */
-export function resolveArea(p: LatLng, accuracy = 0): AreaMatch {
+export function resolveArea(p: LatLng, accuracy = 0, list: AreaCorrection[] = corrections): AreaMatch {
   let correction: AreaCorrection | null = null;
   let correctionMeters = CORRECTION_RADIUS_M;
-  for (const c of corrections) {
+  for (const c of list) {
     const d = distanceMeters(c, p);
     if (d < correctionMeters && areaById[c.areaId]) {
       correction = c;
