@@ -63,7 +63,6 @@ export function SignupScreen() {
       password: form.password,
       firstName,
       lastName: rest.join(' ') || undefined,
-      // Phone isn't a Clerk sign-in method here; our API copies it onto the user row.
       unsafeMetadata: form.phone ? { phone: pretty(form.phone) } : undefined,
       legalAccepted: true,
     });
