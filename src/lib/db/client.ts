@@ -12,7 +12,16 @@ import { relations } from "./relations";
 function createDb() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  const pool = new Pool({ connectionString: url, max: 5 });
+  const pool = new Pool({
+    connectionString: url,
+    max: 5,
+    // Fail fast instead of hanging: a dropped Wi-Fi or idle-killed socket
+    // otherwise waits on the OS TCP timeout, which can be 15+ minutes.
+    connectionTimeoutMillis: 15_000,
+    query_timeout: 20_000,
+    idleTimeoutMillis: 10_000,
+    keepAlive: true,
+  });
   return drizzle({ client: pool, relations });
 }
 

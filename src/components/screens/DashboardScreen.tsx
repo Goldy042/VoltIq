@@ -144,7 +144,7 @@ export function DashboardScreen() {
           </Link>
         </div>
 
-        <div className="relative mx-auto max-w-5xl px-5 pb-8 pt-6 lg:pointer-events-none lg:flex lg:h-full lg:items-center lg:py-0">
+        <div className="relative mx-auto max-w-6xl px-5 pb-8 pt-6 lg:px-6 lg:pointer-events-none lg:flex lg:h-full lg:items-center lg:py-0">
           <div className="max-w-md lg:pointer-events-auto">
             <motion.p {...rise(0)} className="flex items-center gap-2 font-body text-sm text-white/60">
               <span className="relative flex h-2 w-2" aria-hidden="true">
@@ -217,106 +217,126 @@ export function DashboardScreen() {
         </div>
       </section>
 
-      {/* ---- Below the fold: what's next, and what's been ---- */}
-      <main className="mx-auto mt-6 max-w-5xl space-y-4 px-4 lg:mt-8 lg:px-5">
-        {forecast && (
-          <motion.div {...rise(5)}>
-            <HourlyOutlook
-              hours={hourlyOutlook}
-              headline={`Outage likely ${forecast.window.toLowerCase()}`}
-              detail={`${forecast.confidence}% chance in ${forecast.area}. ${forecast.reasons[0]}.`}
-            />
-          </motion.div>
-        )}
-
-        <div className="grid gap-4 lg:grid-cols-2">
-          {mine && <RepairTracker incident={mine} crew={crew} />}
-          {forecast && <ReadyChecklist startsAt="7 PM" />}
+      {/* ---- Below the fold: what's next, and what's been ----
+          Phones: one column in the order below (order-1…6).
+          Desktop: a main column (forecast, repair, supply) and a sticky
+          right rail (get ready, around you, your reports). The column
+          wrappers are `contents` on phones so the order classes apply. */}
+      <main className="mx-auto mt-6 flex max-w-6xl flex-col gap-4 px-4 lg:mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6 lg:px-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+        <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          {forecast && (
+            <motion.div {...rise(5)} className="order-1">
+              <HourlyOutlook
+                hours={hourlyOutlook}
+                headline={`Outage likely ${forecast.window.toLowerCase()}`}
+                detail={`${forecast.confidence}% chance in ${forecast.area}. ${forecast.reasons[0]}.`}
+              />
+            </motion.div>
+          )}
+          {mine && (
+            <div className="order-2">
+              <RepairTracker incident={mine} crew={crew} />
+            </div>
+          )}
+          <div className="order-4">
+            <SupplyWeek days={supplyWeek} promise={bandHours[area.band]} band={area.band} />
+          </div>
         </div>
 
-        <div className="grid gap-4 lg:grid-cols-[1.25fr_1fr]">
-          <SupplyWeek days={supplyWeek} promise={bandHours[area.band]} band={area.band} />
+        <aside
+          aria-label="Your area at a glance"
+          className="contents no-scrollbar lg:sticky lg:top-24 lg:flex lg:max-h-[calc(100dvh-7rem)] lg:flex-col lg:gap-4 lg:overflow-y-auto lg:pb-2"
+        >
+          {forecast && (
+            <div className="order-3">
+              <ReadyChecklist startsAt="7 PM" />
+            </div>
+          )}
 
-          <section aria-labelledby="nearby-title" className="rounded-xl bg-surface p-5 shadow-card lg:p-6">
+          <section aria-labelledby="nearby-title" className="order-5 rounded-xl bg-surface p-5 shadow-card">
             <div className="flex items-baseline justify-between">
               <div>
                 <p className="font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">Around you</p>
-                <h2 id="nearby-title" className="mt-1 font-display text-xl font-bold tracking-tight text-ink">
-                  {nearby.length} problems nearby
+                <h2 id="nearby-title" className="mt-1 font-display text-xl font-bold tracking-tight text-ink lg:text-lg">
+                  {nearby.length ? `${nearby.length} ${nearby.length === 1 ? 'problem' : 'problems'} nearby` : 'All clear nearby'}
                 </h2>
               </div>
               <Link href="/map" className="font-body text-sm font-semibold text-accent hover:underline">
                 Map
               </Link>
             </div>
-            <ul className="mt-3 divide-y divide-line">
-              {nearby.map(({ incident: i, meters }) => (
-                <li key={i.id}>
-                  <Link href={`/map?focus=${i.id}`} className="group flex items-center gap-3 py-3">
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
-                      style={{ backgroundColor: issueMeta[i.issue].color }}
-                    >
-                      <IssueIcon issue={i.issue} className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-body text-sm font-semibold text-ink">{i.area}</span>
-                      <span className="block truncate font-body text-xs text-ink-muted">
-                        {issueMeta[i.issue].label} · <AnimatedCount value={i.reports} /> reports ·{' '}
-                        {i.status === 'crew_dispatched' ? 'crew on the way' : statusMeta[i.status].label.toLowerCase()}
+            {nearby.length === 0 ? (
+              <p className="mt-2 font-body text-sm text-ink-muted">No outages reported within 3.5 km of {placeName(primary).toLowerCase()}.</p>
+            ) : (
+              <ul className="mt-3 divide-y divide-line">
+                {nearby.map(({ incident: i, meters }) => (
+                  <li key={i.id}>
+                    <Link href={`/map?focus=${i.id}`} className="group flex items-center gap-3 py-3">
+                      <span
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
+                        style={{ backgroundColor: issueMeta[i.issue].color }}
+                      >
+                        <IssueIcon issue={i.issue} className="h-4 w-4" />
                       </span>
-                    </span>
-                    <span className="shrink-0 font-body text-xs tabular-nums text-ink-faint">{(meters / 1000).toFixed(1)} km</span>
-                    <ChevronRightIcon className="h-4 w-4 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
-                  </Link>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-body text-sm font-semibold text-ink">{i.area}</span>
+                        <span className="block truncate font-body text-xs text-ink-muted">
+                          {issueMeta[i.issue].label} · <AnimatedCount value={i.reports} /> reports ·{' '}
+                          {i.status === 'crew_dispatched' ? 'crew on the way' : statusMeta[i.status].label.toLowerCase()}
+                        </span>
+                      </span>
+                      <span className="shrink-0 font-body text-xs tabular-nums text-ink-faint">{(meters / 1000).toFixed(1)} km</span>
+                      <ChevronRightIcon className="h-4 w-4 shrink-0 text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section aria-labelledby="my-reports" className="order-6 rounded-xl bg-surface p-5 shadow-card">
+            <div className="flex items-baseline justify-between">
+              <div>
+                <p className="font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">History</p>
+                <h2 id="my-reports" className="mt-1 font-display text-xl font-bold tracking-tight text-ink lg:text-lg">
+                  Your reports
+                </h2>
+              </div>
+              <span className="font-body text-sm text-ink-faint">{myReports.length} total</span>
+            </div>
+            <ol className="mt-4 space-y-0">
+              {myReports.map((r, idx) => (
+                <li key={r.id} className="relative flex gap-4 pb-5 last:pb-0">
+                  {idx < myReports.length - 1 && (
+                    <span className="absolute left-[19px] top-10 h-[calc(100%-36px)] w-0.5 bg-line" aria-hidden="true" />
+                  )}
+                  <span
+                    className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
+                    style={{ backgroundColor: r.status === 'restored' ? 'var(--status-restored)' : issueMeta[r.issue].color }}
+                  >
+                    {r.status === 'restored' ? (
+                      <CheckIcon className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
+                    ) : (
+                      <IssueIcon issue={r.issue} className="h-4 w-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-body text-sm font-semibold text-ink">
+                        {issueMeta[r.issue].label} · {r.place}
+                      </p>
+                      <StatusBadge status={r.status} />
+                    </div>
+                    <p className="mt-0.5 font-body text-xs text-ink-muted">
+                      {r.when} · {r.id}
+                    </p>
+                    {r.note && <p className="mt-1.5 font-body text-sm text-ink-muted">“{r.note}”</p>}
+                  </div>
                 </li>
               ))}
-            </ul>
+            </ol>
           </section>
-        </div>
-
-        <section aria-labelledby="my-reports" className="rounded-xl bg-surface p-5 shadow-card lg:p-6">
-          <div className="flex items-baseline justify-between">
-            <div>
-              <p className="font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">History</p>
-              <h2 id="my-reports" className="mt-1 font-display text-xl font-bold tracking-tight text-ink">
-                Your reports
-              </h2>
-            </div>
-            <span className="font-body text-sm text-ink-faint">{myReports.length} total</span>
-          </div>
-          <ol className="mt-4 space-y-0">
-            {myReports.map((r, idx) => (
-              <li key={r.id} className="relative flex gap-4 pb-5 last:pb-0">
-                {idx < myReports.length - 1 && (
-                  <span className="absolute left-[19px] top-10 h-[calc(100%-36px)] w-0.5 bg-line" aria-hidden="true" />
-                )}
-                <span
-                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
-                  style={{ backgroundColor: r.status === 'restored' ? 'var(--status-restored)' : issueMeta[r.issue].color }}
-                >
-                  {r.status === 'restored' ? (
-                    <CheckIcon className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
-                  ) : (
-                    <IssueIcon issue={r.issue} className="h-4 w-4" />
-                  )}
-                </span>
-                <div className="min-w-0 flex-1 pt-0.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="font-body text-sm font-semibold text-ink">
-                      {issueMeta[r.issue].label} · {r.place}
-                    </p>
-                    <StatusBadge status={r.status} />
-                  </div>
-                  <p className="mt-0.5 font-body text-xs text-ink-muted">
-                    {r.when} · {r.id}
-                  </p>
-                  {r.note && <p className="mt-1.5 font-body text-sm text-ink-muted">“{r.note}”</p>}
-                </div>
-              </li>
-            ))}
-          </ol>
-        </section>
+        </aside>
       </main>
 
       <AppTabBar />

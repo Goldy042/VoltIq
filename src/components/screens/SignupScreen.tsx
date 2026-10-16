@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSignUp } from '@clerk/nextjs';
-import { clerkMessage, goAfterAuth } from '@/components/auth/clerk';
+import { clerkMessage, goAfterAuth, useAuthReady, withAuthTimeout } from '@/components/auth/clerk';
 import { ArrowLeftIcon, MailIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
@@ -29,6 +29,28 @@ const pretty = (d: string) => (d ? `+234 ${d.slice(0, 3)} ${d.slice(3, 6)} ${d.s
  */
 export function SignupScreen() {
   const { signUp } = useSignUp();
+  const auth = useAuthReady();
+  const [problem, setProblem] = useState<string | null>(null);
+  // A stalled or failed Clerk call ends the spinner with a message instead of hanging.
+  const safe = <A extends unknown[]>(fn: (...a: A) => Promise<unknown>) => async (...a: A) => {
+    setProblem(null);
+    try {
+      await fn(...a);
+    } catch (e) {
+      setPending(false);
+      setProblem(e instanceof Error && e.message ? e.message : 'Couldn’t reach the sign-in service. Check your connection and try again.');
+    }
+  };
+  const banner = (auth.failed || problem) && (
+    <div role="alert" className="mb-5 rounded-md border border-status-out p-3 font-body text-sm text-ink">
+      <p>{auth.failed ? 'Sign-up didn’t load, usually because the connection dropped.' : problem}</p>
+      {auth.failed && (
+        <button type="button" onClick={() => window.location.reload()} className="mt-1 font-semibold text-accent hover:underline">
+          Reload and try again
+        </button>
+      )}
+    </div>
+  );
   const [stage, setStage] = useState<'details' | 'verify'>('details');
   const [form, setForm] = useState<Form>({ name: '', email: '', phone: '', password: '' });
   const [errors, setErrors] = useState<Partial<Record<keyof Form | 'code', string>>>({});
@@ -60,11 +82,11 @@ export function SignupScreen() {
     // Name and phone ride in metadata: Clerk rejects firstName/lastName unless
     // "First and last name" is enabled, and phone isn't a sign-in method here.
     // Our API copies both onto the user row on first sign-in.
-    const created = await signUp.password({
+    const created = await withAuthTimeout(signUp.password({
       emailAddress: form.email.trim(),
       password: form.password,
       unsafeMetadata: { name: form.name.trim(), ...(form.phone ? { phone: pretty(form.phone) } : {}) },
-    });
+    }));
     if (created.error) {
       setPending(false);
       const msg = clerkMessage(created.error);
@@ -73,7 +95,7 @@ export function SignupScreen() {
       else setErrors({ email: msg });
       return;
     }
-    const sent = await signUp.verifications.sendEmailCode();
+    const sent = await withAuthTimeout(signUp.verifications.sendEmailCode());
     setPending(false);
     if (sent.error) return setErrors({ email: clerkMessage(sent.error) });
     setCode('');
@@ -87,7 +109,7 @@ export function SignupScreen() {
       return;
     }
     setPending(true);
-    const { error } = await signUp.verifications.verifyEmailCode({ code: value });
+    const { error } = await withAuthTimeout(signUp.verifications.verifyEmailCode({ code: value }));
     if (error) {
       setPending(false);
       return setErrors({ code: clerkMessage(error) });
@@ -97,11 +119,11 @@ export function SignupScreen() {
       return setErrors({ code: 'Almost there, but your account isn’t finished. Go back and check your details.' });
     }
     // /auth/continue creates the VoltIq account and sends them to onboarding.
-    await signUp.finalize({ navigate: goAfterAuth() });
+    await withAuthTimeout(signUp.finalize({ navigate: goAfterAuth() }));
   };
 
   const resend = async () => {
-    const { error } = await signUp.verifications.sendEmailCode();
+    const { error } = await withAuthTimeout(signUp.verifications.sendEmailCode());
     if (error) return setErrors({ code: clerkMessage(error) });
     setResendIn(30);
   };
@@ -125,10 +147,11 @@ export function SignupScreen() {
           <ArrowLeftIcon className="h-4 w-4" aria-hidden="true" />
           Change email
         </button>
+        {banner}
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            verify();
+            void safe(verify)();
           }}
           noValidate
           className="space-y-6"
@@ -142,7 +165,7 @@ export function SignupScreen() {
               setCode(c);
               setErrors({});
             }}
-            onComplete={verify}
+            onComplete={(c) => void safe(verify)(c)}
           />
           <Button type="submit" size="lg" full loading={pending}>
             {pending ? 'Verifying…' : 'Verify and continue'}
@@ -151,7 +174,7 @@ export function SignupScreen() {
             {resendIn > 0 ? (
               <>Resend code in 0:{String(resendIn).padStart(2, '0')}</>
             ) : (
-              <button type="button" onClick={resend} className="font-semibold text-accent hover:underline">
+              <button type="button" onClick={() => void safe(resend)()} className="font-semibold text-accent hover:underline">
                 Resend code
               </button>
             )}
@@ -179,7 +202,8 @@ export function SignupScreen() {
         </p>
       }
     >
-      <form onSubmit={submitDetails} noValidate className="space-y-5">
+      {banner}
+      <form onSubmit={safe(submitDetails)} noValidate className="space-y-5">
         <TextField
           label="Full name"
           hint="Only EEDC sees this, never the public map."

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSignIn } from '@clerk/nextjs';
-import { clerkMessage, goAfterAuth } from '@/components/auth/clerk';
+import { clerkMessage, goAfterAuth, useAuthReady, withAuthTimeout } from '@/components/auth/clerk';
 import { ArrowLeftIcon, BuildingIcon, MailIcon } from 'lucide-react';
 import { AuthShell } from '@/components/auth/AuthShell';
 import { Button } from '@/components/ui/Button';
@@ -49,12 +49,23 @@ export function LoginScreen() {
   };
 
   const { signIn } = useSignIn();
+  const auth = useAuthReady();
+  const [problem, setProblem] = useState<string | null>(null);
+  const safe = <A extends unknown[]>(fn: (...a: A) => Promise<unknown>) => async (...a: A) => {
+    setProblem(null);
+    try {
+      await fn(...a);
+    } catch (e) {
+      setPending(false);
+      setProblem(e instanceof Error && e.message ? e.message : 'Couldn’t reach the sign-in service. Check your connection and try again.');
+    }
+  };
   // New device without MFA: Clerk asks for an emailed code after the password.
   const [secondFactor, setSecondFactor] = useState(false);
 
   const finish = async () => {
     if (signIn.status !== 'complete') return false;
-    await signIn.finalize({ navigate: goAfterAuth() });
+    await withAuthTimeout(signIn.finalize({ navigate: goAfterAuth() }));
     return true;
   };
 
@@ -67,7 +78,7 @@ export function LoginScreen() {
     setErrors(next);
     if (next.email || next.password) return;
     setPending(true);
-    const { error } = await signIn.password({ emailAddress: email.trim(), password });
+    const { error } = await withAuthTimeout(signIn.password({ emailAddress: email.trim(), password }));
     if (error) {
       setPending(false);
       const msg = clerkMessage(error);
@@ -76,7 +87,7 @@ export function LoginScreen() {
     }
     if (await finish()) return;
     if (signIn.status === 'needs_second_factor' || signIn.status === 'needs_client_trust') {
-      const sent = await signIn.mfa.sendEmailCode();
+      const sent = await withAuthTimeout(signIn.mfa.sendEmailCode());
       setPending(false);
       if (sent.error) return setErrors({ password: clerkMessage(sent.error) });
       setSecondFactor(true);
@@ -97,7 +108,7 @@ export function LoginScreen() {
     }
     setErrors({});
     setPending(true);
-    const { error } = secondFactor ? await signIn.mfa.sendEmailCode() : await signIn.emailCode.sendCode({ emailAddress: email.trim() });
+    const { error } = await withAuthTimeout(secondFactor ? signIn.mfa.sendEmailCode() : signIn.emailCode.sendCode({ emailAddress: email.trim() }));
     setPending(false);
     if (error) {
       setErrors(mode === 'otp' ? { code: clerkMessage(error) } : { email: clerkMessage(error) });
@@ -115,7 +126,7 @@ export function LoginScreen() {
     }
     setErrors({});
     setPending(true);
-    const { error } = secondFactor ? await signIn.mfa.verifyEmailCode({ code: value }) : await signIn.emailCode.verifyCode({ code: value });
+    const { error } = await withAuthTimeout(secondFactor ? signIn.mfa.verifyEmailCode({ code: value }) : signIn.emailCode.verifyCode({ code: value }));
     if (error) {
       setPending(false);
       setErrors({ code: clerkMessage(error) });
@@ -198,8 +209,19 @@ export function LoginScreen() {
         </button>
       )}
 
+      {(auth.failed || problem) && (
+        <div role="alert" className="mb-5 rounded-md border border-status-out p-3 font-body text-sm text-ink">
+          <p>{auth.failed ? 'Sign-in didn’t load, usually because the connection dropped.' : problem}</p>
+          {auth.failed && (
+            <button type="button" onClick={() => window.location.reload()} className="mt-1 font-semibold text-accent hover:underline">
+              Reload and try again
+            </button>
+          )}
+        </div>
+      )}
+
       {(mode === 'password' || mode === 'staff') && (
-        <form onSubmit={submitPassword} noValidate className="space-y-5">
+        <form onSubmit={safe(submitPassword)} noValidate className="space-y-5">
           {emailField()}
           <PasswordField
             label="Password"
@@ -230,7 +252,7 @@ export function LoginScreen() {
                 variant="secondary"
                 size="lg"
                 full
-                onClick={() => (isEmail(email) ? sendCode() : switchMode('code'))}
+                onClick={() => (isEmail(email) ? void safe(sendCode)() : switchMode('code'))}
                 leading={<MailIcon className="h-5 w-5" aria-hidden="true" />}
               >
                 Email me a sign-in code
@@ -241,7 +263,7 @@ export function LoginScreen() {
       )}
 
       {mode === 'code' && (
-        <form onSubmit={sendCode} noValidate className="space-y-5">
+        <form onSubmit={safe(sendCode)} noValidate className="space-y-5">
           {emailField(true)}
           <Button type="submit" size="lg" full loading={pending}>
             Send code
@@ -253,7 +275,7 @@ export function LoginScreen() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            verify();
+            void safe(verify)();
           }}
           noValidate
           className="space-y-6"
@@ -267,7 +289,7 @@ export function LoginScreen() {
               setCode(c);
               setErrors({});
             }}
-            onComplete={verify}
+            onComplete={(c) => void safe(verify)(c)}
           />
           <Button type="submit" size="lg" full loading={pending}>
             {pending ? 'Signing in…' : 'Verify and sign in'}
@@ -276,7 +298,7 @@ export function LoginScreen() {
             {resendIn > 0 ? (
               <>Resend code in 0:{String(resendIn).padStart(2, '0')}</>
             ) : (
-              <button type="button" onClick={() => sendCode()} className="font-semibold text-accent hover:underline">
+              <button type="button" onClick={() => void safe(sendCode)()} className="font-semibold text-accent hover:underline">
                 Resend code
               </button>
             )}
