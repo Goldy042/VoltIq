@@ -34,7 +34,8 @@ interface AuthShellProps {
  */
 export function AuthShell({ stepKey, title, intro, children, footer }: AuthShellProps) {
   const reducedMotion = Boolean(useReducedMotion());
-  const { incidents, dots, lastEvent } = useOutageFeed();
+  // Signed-out visitors see the scripted demo night, not live data.
+  const { incidents, dots, lastEvent } = useOutageFeed({ source: 'demo' });
   const reports = incidents.filter((i) => i.status !== 'restored').reduce((s, i) => s + i.reports, 0);
 
   return (

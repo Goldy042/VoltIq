@@ -59,7 +59,7 @@ export function DashboardScreen() {
   const toast = useToast();
   const reducedMotion = Boolean(useReducedMotion());
   const desktop = useMediaQuery('(min-width: 1024px)');
-  const { incidents, crews, dots, addReport } = useOutageFeed();
+  const { incidents, crews, dots, addReport, source: feedSource } = useOutageFeed();
   const [counted, setCounted] = useState(false);
   const [greeting, setGreeting] = useState('Hello');
   const [pastHero, setPastHero] = useState(false);
@@ -107,13 +107,21 @@ export function DashboardScreen() {
 
   const mapPadding = useMemo(() => (desktop ? { left: panelWidth } : {}), [desktop, panelWidth]);
 
-  const countMe = () => {
+  // A real report from your default place; the server decides if it's new, a repeat, or too soon.
+  const countMe = async () => {
     if (!mine) return;
     setCounted(true);
-    addReport(mine.id, 'You');
+    const result = await addReport(mine.id, 'You', home);
+    if (!result && feedSource === 'live') {
+      setCounted(false);
+      return;
+    }
     toast({
-      title: 'You’ve been counted',
-      body: `${mine.reports + 1} reports in ${area.name}`,
+      title: result?.outcome === 'already_counted' ? 'You’re already counted' : 'You’ve been counted',
+      body:
+        result?.outcome === 'already_counted'
+          ? 'You reported this a few minutes ago. Tell us again later if it’s still off.'
+          : `Your report joins ${area.name}’s outage`,
       icon: <IssueIcon issue={mine.issue} className="h-4 w-4" />,
       color: issueMeta[mine.issue].color,
     });

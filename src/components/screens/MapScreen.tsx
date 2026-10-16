@@ -20,6 +20,7 @@ import { LocationCheck } from '@/components/map/LocationCheck';
 import { locateBest, locateErrorText, type Fix } from '@/lib/locate';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { describeLocation, resolveArea } from '@/lib/address';
+import { distanceMeters } from '@/lib/geo';
 import { placeName, useProfile } from '@/lib/profile';
 import {
   areaById,
@@ -44,7 +45,7 @@ export function MapScreen({ view, initialFocus, embedded = false }: MapScreenPro
   const toast = useToast();
   const { primary, correctArea } = useProfile();
   const desktop = useMediaQuery('(min-width: 1024px)');
-  const { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew } = useSharedOutageFeed();
+  const { incidents, crews, dots, lastEvent, addReport, setStatus, dispatchCrew, source, loaded, offline } = useSharedOutageFeed();
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<MapFilter>('all');
@@ -208,8 +209,18 @@ export function MapScreen({ view, initialFocus, embedded = false }: MapScreenPro
             <span className="animate-pulse-ring absolute inset-0 rounded-full bg-status-out" />
             <span className="relative h-2 w-2 rounded-full bg-status-out" />
           </span>
-          <AnimatedCount value={activeIncidents.reduce((s, i) => s + i.reports, 0)} /> reports in{' '}
-          {activeIncidents.length} areas
+          {!loaded ? (
+            'Loading the live map…'
+          ) : offline ? (
+            <span className="text-status-low">Can’t reach the live map. Showing the last update.</span>
+          ) : activeIncidents.length === 0 ? (
+            'No outages reported right now'
+          ) : (
+            <>
+              <AnimatedCount value={activeIncidents.reduce((s, i) => s + i.reports, 0)} /> {activeIncidents.reduce((s, i) => s + i.reports, 0) === 1 ? 'report' : 'reports'} in{' '}
+              {activeIncidents.length} {activeIncidents.length === 1 ? 'area' : 'areas'}
+            </>
+          )}
         </p>
       </div>
       {view === 'citizen' ? (
@@ -259,29 +270,42 @@ export function MapScreen({ view, initialFocus, embedded = false }: MapScreenPro
               view={view}
               onBack={() => select(null)}
               affected={affected.includes(selected.id)}
-              onAffected={() => {
+              onAffected={async () => {
                 setAffected((a) => [...a, selected.id]);
-                addReport(selected.id, 'You');
+                // Report from your saved place when it's inside this outage; otherwise at the outage itself,
+                // where the server's abuse checks judge whether it's plausible.
+                const home = { lat: primary.lat, lng: primary.lng };
+                const near = distanceMeters(home, selected) <= selected.radius + 400;
+                const result = await addReport(selected.id, 'You', near ? home : undefined);
+                if (!result && source === 'live') {
+                  setAffected((a) => a.filter((x) => x !== selected.id));
+                  return;
+                }
                 toast({
-                  title: 'You’ve been counted',
-                  body: `${selected.reports + 1} reports at ${selected.place}`,
+                  title: result?.outcome === 'already_counted' ? 'You’re already counted' : 'You’ve been counted',
+                  body:
+                    result?.outcome === 'already_counted'
+                      ? 'You reported this a few minutes ago.'
+                      : `Your report joins the outage at ${selected.place}`,
                   icon: <IssueIcon issue={selected.issue} className="h-4 w-4" />,
                   color: issueMeta[selected.issue].color,
                 });
               }}
-              onStatus={(s) => {
-                setStatus(selected.id, s);
-                toast({ title: s === 'restored' ? 'Marked as restored' : 'Fault confirmed', body: selected.place });
+              onStatus={async (s) => {
+                if (await setStatus(selected.id, s)) {
+                  toast({ title: s === 'restored' ? 'Marked as restored' : s === 'confirmed' ? 'Fault confirmed' : 'Status updated', body: selected.place });
+                }
               }}
-              onDispatch={(crewId) => {
-                dispatchCrew(selected.id, crewId);
+              onDispatch={async (crewId) => {
                 const crew = crews.find((c) => c.id === crewId);
-                toast({
-                  title: `${crew?.name} dispatched`,
-                  body: `Residents of ${selected.area} have been notified`,
-                  icon: <TruckIcon className="h-4 w-4" />,
-                  color: 'var(--status-crew)',
-                });
+                if (await dispatchCrew(selected.id, crewId)) {
+                  toast({
+                    title: `${crew?.name ?? 'Team'} dispatched`,
+                    body: `${selected.place} is now marked “team on the way”`,
+                    icon: <TruckIcon className="h-4 w-4" />,
+                    color: 'var(--status-crew)',
+                  });
+                }
               }}
             />
           ) : (
@@ -303,7 +327,18 @@ export function MapScreen({ view, initialFocus, embedded = false }: MapScreenPro
       ) : (
         <motion.div key="list" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}>
           {summary}
-          <IncidentList items={listItems} onSelect={select} />
+          {loaded && source === 'live' && incidents.length === 0 && !offline ? (
+            <div className="px-5 py-10 text-center">
+              <p className="font-display text-lg font-bold tracking-tight text-ink">Light is on across Nsukka</p>
+              <p className="mx-auto mt-1 max-w-[32ch] font-body text-sm text-ink-muted">
+                {view === 'operator'
+                  ? 'No open outages. New reports appear here within seconds.'
+                  : 'Nobody has reported a problem. If your light is off, you could be the first.'}
+              </p>
+            </div>
+          ) : (
+            <IncidentList items={listItems} onSelect={select} />
+          )}
         </motion.div>
       )}
     </AnimatePresence>

@@ -75,7 +75,7 @@ export function IncidentDetail({ incident, crews, view, onBack, affected, onAffe
         )}
       </dl>
 
-      <p className="mt-5 rounded-md bg-canvas p-4 font-body text-sm leading-body text-ink-muted">“{incident.note}”</p>
+      {incident.note && <p className="mt-5 rounded-md bg-canvas p-4 font-body text-sm leading-body text-ink-muted">{incident.note}</p>}
 
       {/* Progress tracker */}
       <section aria-label="Repair progress" className="mt-6">
