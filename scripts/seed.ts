@@ -54,6 +54,31 @@ async function main() {
   }
   console.log(`Seeded EEDC and ${areas.length} areas.`);
 
+  // Areas that turned out to be another name for an existing one. Everything
+  // filed under the old area moves to the new one, then the old row goes.
+  const retired: Record<string, string> = { onuiyi: 'hilltop' };
+  for (const [from, to] of Object.entries(retired)) {
+    const [old] = await db.select({ id: areaTable.id }).from(areaTable).where(eq(areaTable.slug, from));
+    const [target] = await db.select({ id: areaTable.id }).from(areaTable).where(eq(areaTable.slug, to));
+    if (!old || !target) continue;
+    await db.transaction(async (tx) => {
+      for (const [table, column] of [
+        ['users', 'area_id'],
+        ['saved_places', 'area_id'],
+        ['incidents', 'area_id'],
+        ['outage_reports', 'area_id'],
+        ['dispatches', 'area_id'],
+        ['predictions', 'area_id'],
+        ['area_corrections', 'area_id'],
+        ['area_corrections', 'guessed_area_id'],
+      ]) {
+        await tx.execute(sql`update ${sql.identifier(table)} set ${sql.identifier(column)} = ${target.id} where ${sql.identifier(column)} = ${old.id}`);
+      }
+      await tx.delete(areaTable).where(eq(areaTable.id, old.id));
+    });
+    console.log(`Merged area "${from}" into "${to}".`);
+  }
+
   // Areas with a drawn boundary are authoritative: re-file saved places that
   // sit inside one, or that were filed under one they're actually outside.
   const rows = await db.select({ id: areaTable.id, slug: areaTable.slug }).from(areaTable);

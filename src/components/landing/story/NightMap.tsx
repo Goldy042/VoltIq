@@ -13,7 +13,7 @@ import { loadBuildings, quickMeters } from '@/components/map/buildings';
 import { crewRoute, steps, storyAreas, type LightState } from './steps';
 
 type Group = 'rest' | keyof typeof storyAreas;
-const GROUPS: Group[] = ['rest', 'odenigwe', 'onuiyi', 'odim'];
+const GROUPS: Group[] = ['rest', 'odenigwe', 'hilltop', 'odim'];
 
 const LIGHT = {
   on: { heat: 0.9, color: '#ffd479', opacity: 0.95 },
@@ -75,7 +75,7 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
         for (let i = 0; i < flat.length; i += 2) {
           const [lng, lat] = [flat[i], flat[i + 1]];
           let g: Group = 'rest';
-          for (const key of ['odenigwe', 'onuiyi', 'odim'] as const) {
+          for (const key of ['odenigwe', 'hilltop', 'odim'] as const) {
             const a = storyAreas[key];
             if (meters(lng, lat, a.lng, a.lat) < a.radius) {
               g = key;
@@ -94,7 +94,7 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
 
   const reportDots = useMemo<GeoJSON.FeatureCollection>(() => {
     const odenigwe = incidents.find((i) => i.id === 'inc-odenigwe')!;
-    const onuiyi = incidents.find((i) => i.id === 'inc-onuiyi')!;
+    const hilltop = incidents.find((i) => i.id === 'inc-hilltop-low')!;
     const toFeatures = (dots: ReturnType<typeof reportDotsFor>, kind: string) =>
       dots.map((d, i) => ({
         type: 'Feature' as const,
@@ -103,7 +103,7 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
       }));
     return {
       type: 'FeatureCollection',
-      features: [...toFeatures(reportDotsFor(odenigwe, 47), 'out'), ...toFeatures(reportDotsFor(onuiyi, 31), 'low')],
+      features: [...toFeatures(reportDotsFor(odenigwe, 47), 'out'), ...toFeatures(reportDotsFor(hilltop, 31), 'low')],
     };
   }, []);
 
@@ -156,22 +156,22 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
     };
   }, [step, focus, loaded, reducedMotion]);
 
-  // Onuiyi flickers while the voltage is low.
+  // Hilltop flickers while the voltage is low.
   useEffect(() => {
     const map = mapRef.current?.getMap();
-    if (!map || !loaded || scene.lights.onuiyi !== 'low' || reducedMotion) return;
+    if (!map || !loaded || scene.lights.hilltop !== 'low' || reducedMotion) return;
     let timer = 0;
     const flick = () => {
       const level = Math.random();
-      if (map.getLayer('glow-onuiyi')) {
-        map.setPaintProperty('glow-onuiyi', 'heatmap-opacity', 0.12 + level * 0.4);
-        map.setPaintProperty('win-onuiyi', 'circle-opacity', 0.35 + level * 0.55);
+      if (map.getLayer('glow-hilltop')) {
+        map.setPaintProperty('glow-hilltop', 'heatmap-opacity', 0.12 + level * 0.4);
+        map.setPaintProperty('win-hilltop', 'circle-opacity', 0.35 + level * 0.55);
       }
       timer = window.setTimeout(flick, 70 + Math.random() * 380);
     };
     flick();
     return () => window.clearTimeout(timer);
-  }, [scene.lights.onuiyi, loaded, reducedMotion]);
+  }, [scene.lights.hilltop, loaded, reducedMotion]);
 
   // The crew drives the real road from the substation.
   useEffect(() => {
@@ -226,7 +226,7 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
         <Source id="homes" type="geojson" data={buildings}>
           {GROUPS.map((g) => {
             const s = LIGHT[stateOf(g)];
-            const quick = g === 'onuiyi';
+            const quick = g === 'hilltop';
             return (
               <Layer
                 key={`glow-${g}`}
@@ -254,7 +254,7 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
           })}
           {GROUPS.map((g) => {
             const s = LIGHT[stateOf(g)];
-            const quick = g === 'onuiyi';
+            const quick = g === 'hilltop';
             return (
               <Layer
                 key={`win-${g}`}
@@ -397,10 +397,10 @@ export function NightMap({ step, reportCount, focus, compact, reducedMotion }: N
       />
       <AreaCallout
         show={scene.id === 'low' || scene.id === 'crew'}
-        at={storyAreas.onuiyi}
+        at={storyAreas.hilltop}
         color="#e0700a"
         icon={<span className="font-display text-[11px] font-bold">V</span>}
-        label="Onuiyi · 142 V"
+        label="Hilltop · 142 V"
       />
       <AreaCallout
         show={scene.restored}

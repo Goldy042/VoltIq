@@ -126,7 +126,7 @@ export interface Team {
 export const seedTeams: Team[] = [
   { id: 'c-alpha', name: 'Crew Alpha', leadId: 's-chinedu', leadAssignedBy: 's-adaobi', zone: ['Town 11kV', 'Ogige 11kV'], jobsRestored: 14, restoreMinutes: 86, within4h: 93 },
   { id: 'c-bravo', name: 'Crew Bravo', leadId: 's-ifeanyi', leadAssignedBy: 's-adaobi', zone: ['Odenigwe 11kV', 'Enugu Road 11kV'], jobsRestored: 17, restoreMinutes: 119, within4h: 82 },
-  { id: 'c-charlie', name: 'Crew Charlie', leadId: 's-ngozi', leadAssignedBy: 's-adaobi', zone: ['UNN Campus 11kV', 'Onuiyi 11kV'], jobsRestored: 12, restoreMinutes: 139, within4h: 71 },
+  { id: 'c-charlie', name: 'Crew Charlie', leadId: 's-ngozi', leadAssignedBy: 's-adaobi', zone: ['UNN Campus 11kV'], jobsRestored: 12, restoreMinutes: 139, within4h: 71 },
   { id: 'c-delta', name: 'Crew Delta', leadId: 's-emeka', leadAssignedBy: 's-adaobi', zone: ['Nru–Owerre 11kV', 'Ihe 11kV', 'Obukpa 11kV'], jobsRestored: 9, restoreMinutes: 108, within4h: 89 },
 ];
 

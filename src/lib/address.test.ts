@@ -46,7 +46,15 @@ test('a rough fix near the edge asks instead of guessing', () => {
   assert.ok(o.alternatives.some((a) => a.id === 'hilltop'));
 });
 
+test('the spot once called Onuiyi is Hilltop, and searching Onuiyi finds Hilltop', async () => {
+  const { searchPlaces } = await import('./address');
+  for (const p of [{ lat: 6.8508, lng: 7.4128 }, { lat: 6.851, lng: 7.4126 }, { lat: 6.8530, lng: 7.4150 }]) {
+    assert.equal(resolveArea(p, 20, []).area.id, 'hilltop', JSON.stringify(p));
+  }
+  assert.equal(searchPlaces('onuiyi')[0].name, 'Hilltop');
+});
+
 test('a correction cannot pull a point out of a drawn boundary', () => {
-  const m = resolveArea(mid, 10, [{ ...mid, areaId: 'onuiyi' }]);
+  const m = resolveArea(mid, 10, [{ ...mid, areaId: 'beach' }]);
   assert.equal(m.area.id, 'hilltop');
 });
