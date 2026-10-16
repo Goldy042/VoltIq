@@ -60,7 +60,7 @@ export function OperatorTeams() {
               setCreating(false);
             }}
           >
-            <div className="space-y-3 rounded-lg bg-surface p-4 shadow-card">
+            <div className="space-y-3 rounded-md bg-surface p-4 shadow-card">
               <label className="block">
                 <span className="font-body text-sm font-medium text-ink">Team name</span>
                 <input
@@ -68,7 +68,7 @@ export function OperatorTeams() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g. Crew Echo"
-                  className="mt-1.5 h-11 w-full rounded-md border border-line bg-surface px-3 font-body text-sm text-ink focus:border-ink focus:outline-none"
+                  className="mt-1.5 h-11 w-full rounded-sm border border-line bg-surface px-3 font-body text-sm text-ink focus:border-ink focus:outline-none"
                 />
               </label>
               <fieldset>
@@ -128,10 +128,10 @@ function TeamCard({ team, job }: { team: Team; job?: { id: string; place: string
   const joinable = staff.filter((s) => s.teamId !== team.id && (s.role === 'technician' || (s.role === 'team_lead' && !s.teamId)));
 
   return (
-    <article className="flex min-w-0 flex-col rounded-lg bg-surface p-4 shadow-card lg:p-5">
+    <article className="flex min-w-0 flex-col rounded-md bg-surface p-4 shadow-card lg:p-5">
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="font-display text-lg font-bold tracking-tight text-ink">{team.name}</h2>
+          <h2 className="font-body text-base font-semibold text-ink">{team.name}</h2>
           <p className="mt-0.5 truncate font-body text-xs text-ink-muted">{team.zone.length ? team.zone.join(' · ') : 'No feeders yet'}</p>
         </div>
         <HealthBadge level={health.level} score={health.score} />
@@ -167,7 +167,7 @@ function TeamCard({ team, job }: { team: Team; job?: { id: string; place: string
                   color: 'var(--ink)',
                 });
               }}
-              className="h-10 w-full rounded-full border border-line bg-surface px-4 font-body text-sm text-ink focus:border-ink focus:outline-none"
+              className="h-10 w-full rounded-sm border border-line bg-surface px-4 font-body text-sm text-ink focus:border-ink focus:outline-none"
             >
               <option value="" disabled>
                 Choose a lead…
@@ -264,7 +264,7 @@ function TeamCard({ team, job }: { team: Team; job?: { id: string; place: string
               moveToTeam(p.id, team.id);
               toast({ title: `${p.name} joined ${team.name}` });
             }}
-            className="mt-2 h-9 w-full rounded-full border border-dashed border-line-strong bg-surface px-4 font-body text-sm text-ink-muted focus:border-ink focus:outline-none"
+            className="mt-2 h-9 w-full rounded-sm border border-dashed border-line-strong bg-surface px-4 font-body text-sm text-ink-muted focus:border-ink focus:outline-none"
             aria-label={`Add a member to ${team.name}`}
           >
             <option value="">+ Add member…</option>
@@ -285,7 +285,7 @@ function Metric({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col-reverse rounded-md bg-canvas px-1 py-2">
       <dt className="mt-1 font-body text-2xs text-ink-faint">{label}</dt>
-      <dd className="font-display text-lg font-bold leading-none tabular-nums text-ink">{value}</dd>
+      <dd className="font-mono text-lg font-medium leading-none tabular-nums text-ink">{value}</dd>
     </div>
   );
 }

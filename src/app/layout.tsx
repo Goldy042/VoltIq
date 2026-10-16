@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
-import { IBM_Plex_Sans, Schibsted_Grotesk } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans, Schibsted_Grotesk } from 'next/font/google';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ProfileProvider } from '@/lib/profile';
 import { getDb } from '@/lib/db/client';
@@ -23,6 +23,14 @@ const plex = IBM_Plex_Sans({
   subsets: ['latin'],
   weight: ['400', '500', '600'],
   variable: '--font-plex',
+  display: 'swap',
+});
+
+// Tabular figures for the operator control room: counts, IDs, clocks.
+const plexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-plex-mono',
   display: 'swap',
 });
 
@@ -50,7 +58,7 @@ export default async function RootLayout({
       lang="en"
       data-theme="light"
       suppressHydrationWarning
-      className={`${schibsted.variable} ${plex.variable}`}
+      className={`${schibsted.variable} ${plex.variable} ${plexMono.variable}`}
     >
       {/* Browser extensions (e.g. Grammarly) add attributes to <html>/<body> before hydration. */}
       <body suppressHydrationWarning className="min-h-full w-full bg-canvas font-body text-ink">

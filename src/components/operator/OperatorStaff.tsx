@@ -50,11 +50,11 @@ export function OperatorStaff() {
             type="button"
             aria-pressed={roleFilter === r}
             onClick={() => setRoleFilter((f) => (f === r ? 'all' : r))}
-            className={`rounded-lg p-4 text-left shadow-card transition-colors ${roleFilter === r ? 'bg-ink text-canvas' : 'bg-surface text-ink hover:bg-canvas'}`}
+            className={`rounded-md p-4 text-left shadow-card transition-colors ${roleFilter === r ? 'bg-raised text-ink ring-1 ring-accent' : 'bg-surface text-ink hover:bg-raised'}`}
           >
-            <p className="font-display text-2xl font-bold leading-none tabular-nums">{staff.filter((s) => s.role === r).length}</p>
+            <p className="font-mono text-2xl font-medium leading-none tabular-nums">{staff.filter((s) => s.role === r).length}</p>
             <p className="mt-2 font-body text-sm font-semibold">{roleMeta[r].label}s</p>
-            <p className={`mt-1 font-body text-xs leading-snug ${roleFilter === r ? 'opacity-70' : 'text-ink-muted'}`}>{roleMeta[r].description}</p>
+            <p className={`mt-1 font-body text-xs leading-snug text-ink-muted`}>{roleMeta[r].description}</p>
           </button>
         ))}
       </div>
@@ -68,7 +68,7 @@ export function OperatorStaff() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name"
-              className="h-10 w-full rounded-full border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-10 w-full rounded-sm border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </label>
           {roleFilter !== 'all' && (
@@ -118,7 +118,7 @@ export function OperatorStaff() {
                           body: role === 'team_lead' ? 'Make them lead of a team on the Teams page.' : roleMeta[role].description,
                         });
                       }}
-                      className="h-9 w-full min-w-0 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:opacity-60 sm:w-40"
+                      className="h-9 w-full min-w-0 rounded-sm border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none disabled:opacity-60 sm:w-40"
                     >
                       {roles.map((r) => (
                         <option key={r} value={r}>
@@ -140,7 +140,7 @@ export function OperatorStaff() {
                         const t = teams.find((x) => x.id === e.target.value);
                         toast({ title: t ? `${s.name} moved to ${t.name}` : `${s.name} is unassigned` });
                       }}
-                      className="h-9 w-full min-w-0 rounded-full border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none sm:w-36"
+                      className="h-9 w-full min-w-0 rounded-sm border border-line bg-surface px-3 text-sm text-ink focus:border-ink focus:outline-none sm:w-36"
                     >
                       <option value="">Unassigned</option>
                       {teams.map((t) => (
@@ -179,7 +179,7 @@ export function OperatorStaff() {
         <div className="-mx-4 hidden md:block lg:-mx-5">
           <table className="w-full font-body text-sm">
             <thead>
-              <tr className="border-b border-line text-xs text-ink-faint">
+              <tr className="border-b border-line font-mono text-2xs uppercase tracking-wide text-ink-faint">
                 <th className="px-4 py-2 text-left font-medium lg:px-5">Permission</th>
                 {roles.map((r) => (
                   <th key={r} className="px-2 py-2 text-center font-medium">

@@ -14,6 +14,7 @@
   --canvas: #f3f3f0;
   --surface: #ffffff;
   --surface-sunken: #ebebe7;
+  --surface-raised: #ffffff;
   --ink: #111113;
   --ink-muted: #55575d;
   --ink-faint: #73757c;
@@ -35,6 +36,7 @@
   /* ---- Typography ---- */
   --font-display: var(--font-schibsted), 'Helvetica Neue', Arial, sans-serif;
   --font-body: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -76,15 +78,18 @@
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
+/* Dark = the "Control Room": graphite, hairlines instead of shadows, colour
+   reserved for status. The operator area runs in it day and night. */
 [data-theme='dark'] {
-  --canvas: #0c0c0e;
-  --surface: #17181b;
-  --surface-sunken: #111214;
-  --ink: #f2f2ef;
-  --ink-muted: #a3a5ab;
-  --ink-faint: #85878e;
-  --line: #26272b;
-  --line-strong: #393a40;
+  --canvas: #09090b;
+  --surface: #111214;
+  --surface-sunken: #0d0e10;
+  --surface-raised: #17181b;
+  --ink: #ececea;
+  --ink-muted: #9b9ea6;
+  --ink-faint: #7a7e86;
+  --line: #1f2125;
+  --line-strong: #2e3136;
   --accent: #7095ff;
   --accent-hover: #8eabff;
   --accent-tint: #18203a;
@@ -94,8 +99,9 @@
   --status-crew: #7095ff;
   --status-restored: #3ccf8a;
   --status-predicted: #a08bff;
-  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.04);
-  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.06), 0 10px 28px rgb(0 0 0 / 0.5);
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-float: 0 0 0 1px rgb(255 255 255 / 0.08), 0 16px 40px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
 }
 
 html,

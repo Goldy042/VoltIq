@@ -10,6 +10,7 @@ export default {
         canvas: 'var(--canvas)',
         surface: 'var(--surface)',
         sunken: 'var(--surface-sunken)',
+        raised: 'var(--surface-raised)',
         ink: {
           DEFAULT: 'var(--ink)',
           muted: 'var(--ink-muted)',
@@ -37,6 +38,7 @@ export default {
       fontFamily: {
         display: 'var(--font-display)',
         body: 'var(--font-body)',
+        mono: 'var(--font-mono)',
       },
       fontSize: {
         '2xs': 'var(--text-2xs)',

@@ -22,7 +22,7 @@ export function ReportsChart({ data }: { data: Bar[] }) {
   return (
     <div>
       <div className="relative flex gap-2">
-        <div className="flex flex-col justify-between pb-5 text-right font-body text-2xs tabular-nums text-ink-faint" style={{ height: H + 20 }}>
+        <div className="flex flex-col justify-between pb-5 text-right font-mono text-2xs tabular-nums text-ink-faint" style={{ height: H + 20 }}>
           {[...ticks].reverse().map((t) => (
             <span key={t} className="-translate-y-1/2 leading-none">
               {t}

@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckIcon, DownloadIcon, GaugeIcon, MapPinIcon, SearchIcon, XIcon } from 'lucide-react';
 import { Button, ButtonLink } from '@/components/ui/Button';
-import { IssueBadge, StatusBadge } from '@/components/ui/Badges';
+import { StatusBadge } from '@/components/ui/Badges';
 import { cn } from '@/components/ui/cn';
 import { useToast } from '@/components/ui/Toast';
 import { areas, areaById, type IssueType } from '@/data/nsukka';
@@ -12,7 +12,7 @@ import type { ReportReview, ReportRow } from '@/data/operations';
 import { describeLocation } from '@/lib/address';
 import { formatAgo } from '@/lib/geo';
 import { useOperations } from '@/lib/operations';
-import { FilterPill, Page, PageHeader } from './parts';
+import { FilterPill, IssueTag, Page, PageHeader } from './parts';
 import { useReportLog } from './ReportLog';
 
 type IssueFilter = 'all' | IssueType;
@@ -104,14 +104,14 @@ export function OperatorReports() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search by name, place, ID or note"
-              className="h-11 w-full rounded-full border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
+              className="h-11 w-full rounded-sm border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </label>
           <select
             aria-label="Area"
             value={areaId}
             onChange={(e) => setAreaId(e.target.value)}
-            className="h-11 rounded-full border border-line bg-surface px-4 font-body text-sm text-ink focus:border-ink focus:outline-none"
+            className="h-11 rounded-sm border border-line bg-surface px-4 font-body text-sm text-ink focus:border-ink focus:outline-none"
           >
             <option value="">All areas</option>
             {areas.map((a) => (
@@ -156,7 +156,7 @@ export function OperatorReports() {
         )}
       </AnimatePresence>
 
-      <div className="overflow-hidden rounded-lg bg-surface shadow-card">
+      <div className="overflow-hidden rounded-md bg-surface shadow-card">
         {/* Phones: one card per report */}
         <ul className="divide-y divide-line md:hidden">
           {shown.map((r) => (
@@ -186,7 +186,7 @@ export function OperatorReports() {
                   {areaById[r.areaId]?.name} · {r.place}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <IssueBadge issue={r.issue} className="h-6" />
+                  <IssueTag issue={r.issue} />
                   <StatusBadge status={r.status} className="h-6" />
                   <ReviewTag review={r.review} />
                 </div>
@@ -199,7 +199,7 @@ export function OperatorReports() {
         <div className="hidden md:block">
           <table className="w-full font-body text-sm">
             <thead className="border-b border-line">
-              <tr className="text-left text-xs text-ink-faint">
+              <tr className="text-left font-mono text-2xs uppercase tracking-wide text-ink-faint">
                 <th className="w-10 py-3 pl-4">
                   {canTriage && (
                     <input
@@ -224,7 +224,7 @@ export function OperatorReports() {
                 <tr
                   key={r.id}
                   onClick={() => setOpenId(r.id)}
-                  className={cn('cursor-pointer transition-colors hover:bg-canvas', openId === r.id && 'bg-canvas')}
+                  className={cn('cursor-pointer transition-colors hover:bg-raised', openId === r.id && 'bg-raised')}
                 >
                   <td className="py-2.5 pl-4" onClick={(e) => e.stopPropagation()}>
                     {canTriage && (
@@ -246,14 +246,14 @@ export function OperatorReports() {
                   </td>
                   <td className="px-2 py-2.5">
                     <p className="font-semibold text-ink">{r.reporter}</p>
-                    <p className="text-xs tabular-nums text-ink-faint">{r.id}</p>
+                    <p className="font-mono text-xs tabular-nums text-ink-faint">{r.id}</p>
                   </td>
                   <td className="max-w-[220px] px-2 py-2.5">
                     <p className="truncate text-ink">{areaById[r.areaId]?.name}</p>
                     <p className="truncate text-xs text-ink-faint">{r.place}</p>
                   </td>
                   <td className="px-2 py-2.5">
-                    <IssueBadge issue={r.issue} className="h-6" />
+                    <IssueTag issue={r.issue} />
                   </td>
                   <td className="px-2 py-2.5">
                     <StatusBadge status={r.status} className="h-6" />
@@ -345,7 +345,7 @@ function ReportDrawer({
         </div>
         <div className="flex-1 space-y-5 overflow-y-auto p-5">
           <div className="flex flex-wrap gap-1.5">
-            <IssueBadge issue={r.issue} />
+            <IssueTag issue={r.issue} />
             <StatusBadge status={r.status} />
           </div>
           {r.note && <p className="rounded-md bg-canvas p-3 font-body text-sm italic text-ink">“{r.note}”</p>}

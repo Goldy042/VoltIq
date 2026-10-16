@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Map, {
   AttributionControl,
   Layer,
@@ -111,13 +111,17 @@ export function MapCanvas({
 }: MapCanvasProps) {
   const mapRef = useRef<MapRef>(null);
   const [cursor, setCursor] = useState<string>('grab');
-  const [styleUrl, setStyleUrl] = useState(STYLE_LIGHT);
+  const wrapRef = useRef<HTMLDivElement>(null);
+  // Null until we know the surrounding theme, so the map never flashes the wrong style.
+  const [styleUrl, setStyleUrl] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [zoom, setZoom] = useState(initialZoom);
   const [groups, setGroups] = useState<PinGroup[]>([]);
 
-  useEffect(() => {
-    if (document.documentElement.dataset.theme === 'dark') setStyleUrl(STYLE_DARK);
+  // Follow the nearest data-theme, so the map goes dark inside the operator control room.
+  useLayoutEffect(() => {
+    const themed = wrapRef.current?.closest('[data-theme]') as HTMLElement | null;
+    setStyleUrl(themed?.dataset.theme === 'dark' ? STYLE_DARK : STYLE_LIGHT);
   }, []);
 
   useEffect(() => {
@@ -247,7 +251,8 @@ export function MapCanvas({
   const showPredictionPins = zoom >= 13 || predictions.length <= 1;
 
   return (
-    <div className={className ?? 'h-full w-full'}>
+    <div ref={wrapRef} className={className ?? 'h-full w-full'}>
+      {styleUrl && (
       <Map
         ref={mapRef}
         mapStyle={styleUrl}
@@ -399,6 +404,7 @@ export function MapCanvas({
           </Marker>
         )}
       </Map>
+      )}
     </div>
   );
 }
