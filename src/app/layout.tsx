@@ -45,6 +45,8 @@ export const metadata: Metadata = {
   title: 'VoltIq — Nsukka outage map and alerts',
   description:
     'Nsukka residents report no light, low voltage and fluctuating supply on a shared live map. EEDC crews see where the faults are, and AI forecasts warn neighbourhoods before the power goes.',
+  icons: { icon: '/icon-192.png', apple: '/apple-touch-icon.png' },
+  appleWebApp: { capable: true, title: 'VoltIq', statusBarStyle: 'default' },
 };
 
 export const viewport: Viewport = {

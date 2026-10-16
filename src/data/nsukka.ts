@@ -189,7 +189,8 @@ export const substations: Substation[] = [
 export interface Crew {
   id: string;
   name: string;
-  /** The lead's name comes from the operations roster (useOperations().leadName). */
+  /** Lead's name when it came from the server; otherwise use useOperations().leadName. */
+  lead?: string;
   status: CrewStatus;
   lat: number;
   lng: number;

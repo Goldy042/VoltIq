@@ -12,6 +12,7 @@ import type { ReportReview, ReportRow } from '@/data/operations';
 import { describeLocation } from '@/lib/address';
 import { formatAgo } from '@/lib/geo';
 import { useOperations } from '@/lib/operations';
+import { flagLabel } from '@/lib/reporting';
 import { FilterPill, IssueTag, Page, PageHeader } from './parts';
 import { useReportLog } from './ReportLog';
 
@@ -47,7 +48,7 @@ export function OperatorReports() {
         (issue === 'all' || r.issue === issue) &&
         (review === 'all' || r.review === review) &&
         (!areaId || r.areaId === areaId) &&
-        (!q || [r.id, r.reporter, r.place, areaById[r.areaId]?.name, r.note].some((v) => v?.toLowerCase().includes(q))),
+        (!q || [r.id, r.ref, r.reporter, r.place, areaById[r.areaId]?.name, r.note].some((v) => v?.toLowerCase().includes(q))),
     );
   }, [rows, query, issue, review, areaId]);
 
@@ -246,7 +247,7 @@ export function OperatorReports() {
                   </td>
                   <td className="px-2 py-2.5">
                     <p className="font-semibold text-ink">{r.reporter}</p>
-                    <p className="font-mono text-xs tabular-nums text-ink-faint">{r.id}</p>
+                    <p className="font-mono text-xs tabular-nums text-ink-faint">{r.ref ?? r.id}</p>
                   </td>
                   <td className="max-w-[220px] px-2 py-2.5">
                     <p className="truncate text-ink">{areaById[r.areaId]?.name}</p>
@@ -325,7 +326,7 @@ function ReportDrawer({
       />
       <motion.aside
         role="dialog"
-        aria-label={`Report ${r.id}`}
+        aria-label={`Report ${r.ref ?? r.id}`}
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
@@ -336,7 +337,7 @@ function ReportDrawer({
           <div>
             <p className="font-display text-lg font-bold text-ink">{r.reporter}</p>
             <p className="font-body text-xs tabular-nums text-ink-faint">
-              {r.id} · {formatAgo(r.minutesAgo)}
+              {r.ref ?? r.id} · {formatAgo(r.minutesAgo)}
             </p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close" className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-sunken">
@@ -349,6 +350,18 @@ function ReportDrawer({
             <StatusBadge status={r.status} />
           </div>
           {r.note && <p className="rounded-md bg-canvas p-3 font-body text-sm italic text-ink">“{r.note}”</p>}
+          {r.flags && r.flags.length > 0 && (
+            <div className="rounded-md p-3 ring-1 ring-status-low">
+              <p className="font-body text-xs font-semibold text-status-low">Why the checks flagged this</p>
+              <ul className="mt-1.5 space-y-1">
+                {r.flags.map((f) => (
+                  <li key={f} className="font-body text-sm text-ink-muted">
+                    {flagLabel[f] ?? f}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <dl className="grid grid-cols-2 gap-4 font-body text-sm">
             <div className="col-span-2">
               <dt className="flex items-center gap-1.5 text-xs text-ink-faint">

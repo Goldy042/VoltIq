@@ -223,7 +223,7 @@ export function OnboardingScreen() {
               <div className="pt-4">
                 <h1 className="font-display text-3xl font-bold tracking-tight text-ink">How should we alert you?</h1>
                 <p className="mt-2 font-body text-base text-ink-muted">
-                  Email and app notifications are free. Turn on SMS only if you’re often without data.
+                  App notifications are free and instant. Turn on SMS only if you’re often without data.
                 </p>
                 <div className="-mx-3 mt-6">
                   <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts }).catch(fail)} />

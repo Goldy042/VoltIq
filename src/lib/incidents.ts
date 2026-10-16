@@ -4,12 +4,14 @@
  * and unit-tested without a database (incidents.test.ts).
  */
 
-import type { Incident, IncidentStatus, IssueType, ReportDot } from '@/data/nsukka';
+import type { Crew, Incident, IncidentStatus, IssueType, ReportDot } from '@/data/nsukka';
 
 export interface LiveFeed {
   incidents: Incident[];
   /** One dot per counted report, snapped to a ~30 m grid so no house is pinpointed. */
   dots: ReportDot[];
+  /** Teams: all of them for staff, only those out on a job for residents. */
+  crews: Crew[];
   /** Server clock, so the client can tell how fresh the feed is. */
   serverTime: string;
 }

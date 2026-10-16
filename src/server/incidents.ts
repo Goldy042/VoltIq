@@ -9,7 +9,7 @@
 
 import { and, eq, gte, inArray, ne, or } from 'drizzle-orm';
 import type { Db } from '@/lib/db/client';
-import { areas, incidents, outageReports } from '@/lib/db/schema';
+import { areas, dispatches, incidents, outageReports } from '@/lib/db/schema';
 import type { Incident, IncidentStatus } from '@/data/nsukka';
 import { describeLocation } from '@/lib/address';
 import {
@@ -22,6 +22,8 @@ import {
   type LiveFeed,
 } from '@/lib/incidents';
 import { ReportError } from './reports';
+import { completeDispatches, loadCrews } from './operations';
+import { notifyIncident } from './notifications';
 
 const HOUR = 3_600_000;
 
@@ -36,7 +38,15 @@ export async function listLiveFeed(db: Db, opts: { staff?: boolean; now?: Date }
     .from(incidents)
     .where(or(ne(incidents.status, 'restored'), gte(incidents.restoredAt, new Date(now.getTime() - SHOW_RESTORED_HOURS * HOUR))));
 
-  if (!rows.length) return { incidents: [], dots: [], serverTime: now.toISOString() };
+  const crews = await loadCrews(db, { staff: Boolean(opts.staff) });
+  if (!rows.length) return { incidents: [], dots: [], crews, serverTime: now.toISOString() };
+
+  // The team currently sent to each outage.
+  const open = await db
+    .select({ incidentId: dispatches.incidentId, teamId: dispatches.teamId })
+    .from(dispatches)
+    .where(and(inArray(dispatches.incidentId, rows.map((r) => r.id)), ne(dispatches.status, 'completed')));
+  const teamFor = new Map(open.map((d) => [d.incidentId, d.teamId]));
 
   const areaRows = await db.select().from(areas);
   const areaById = new Map(areaRows.map((a) => [a.id, a]));
@@ -94,11 +104,12 @@ export async function listLiveFeed(db: Db, opts: { staff?: boolean; now?: Date }
       voltage: inc.issueType === 'no_power' ? undefined : medianVoltage(list.map((r) => r.voltage)),
       note: opts.staff && latestNote ? latestNote : describeIncident(inc.issueType, inc.reporterCount),
       radius: inc.radiusM,
+      crewId: inc.status === 'restored' ? undefined : teamFor.get(inc.id),
     });
     dots.push(...snapDots(inc.id, inc.issueType, list, now));
   }
 
-  return { incidents: out, dots, serverTime: now.toISOString() };
+  return { incidents: out, dots, crews, serverTime: now.toISOString() };
 }
 
 /**
@@ -107,11 +118,11 @@ export async function listLiveFeed(db: Db, opts: { staff?: boolean; now?: Date }
  * which is what rewards residents who later agree their light is back.
  */
 export async function setIncidentStatus(db: Db, incidentId: string, to: IncidentStatus, now = new Date()) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [inc] = await tx.select().from(incidents).where(eq(incidents.id, incidentId));
     if (!inc) throw new ReportError('not_found', 'That outage no longer exists.');
     const from = inc.status as IncidentStatus;
-    if (from === to) return { status: to };
+    if (from === to) return { status: to, changed: false };
     if (!canMoveStatus(from, to)) {
       throw new ReportError('invalid', `An outage that is ${from.replace('_', ' ')} can’t be moved to ${to.replace('_', ' ')}.`, { field: 'status' });
     }
@@ -121,12 +132,15 @@ export async function setIncidentStatus(db: Db, incidentId: string, to: Incident
     if (to === 'restored') {
       patch.restoredAt = now;
       patch.restoredBy = 'eedc';
+      await completeDispatches(tx, incidentId, now);
     }
     if (from === 'restored') {
       patch.restoredAt = null;
       patch.restoredBy = null;
     }
     await tx.update(incidents).set(patch).where(eq(incidents.id, incidentId));
-    return { status: to };
+    return { status: to, changed: true };
   });
+  if (result.changed && to !== 'reported') await notifyIncident(db, incidentId, to, now);
+  return { status: result.status };
 }

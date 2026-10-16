@@ -126,7 +126,13 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
   const onEventRef = useRef(onEvent);
   onEventRef.current = onEvent;
   const seenRef = useRef<Map<string, number> | null>(null);
-  const { crews, assign, release } = useCrews(enabled, incidentsRef);
+  const [crews, setCrews] = useState<Crew[]>([]);
+  const assign = useCallback((incidentId: string, crewId: string) => {
+    setCrews((prev) => prev.map((c) => (c.id === crewId ? { ...c, status: 'on_site', incidentId } : c)));
+  }, []);
+  const release = useCallback((incidentId: string) => {
+    setCrews((prev) => prev.map((c) => (c.incidentId === incidentId ? { ...c, status: 'available', incidentId: undefined } : c)));
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -147,6 +153,7 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
       seenRef.current = new Map(feed.incidents.map((i) => [i.id, i.reports]));
       setIncidents(feed.incidents);
       setDots(feed.dots);
+      setCrews(feed.crews ?? []);
       setOffline(false);
     } catch {
       setOffline(true);
@@ -227,12 +234,22 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
 
   const dispatchCrew = useCallback<OutageFeed['dispatchCrew']>(
     async (incidentId, crewId) => {
-      patchIncident(incidentId, { crewId });
+      const before = incidentsRef.current.find((i) => i.id === incidentId);
+      if (!before) return false;
+      patchIncident(incidentId, { crewId, status: 'crew_dispatched' });
       assign(incidentId, crewId);
-      // The status is saved; which team went stays on this screen until teams live in the database.
-      return setStatus(incidentId, 'crew_dispatched');
+      try {
+        await api(`/api/operator/incidents/${incidentId}/dispatch`, { body: { teamId: crewId } });
+        void load();
+        return true;
+      } catch (e) {
+        patchIncident(incidentId, { crewId: before.crewId, status: before.status });
+        void load();
+        toast({ title: 'Dispatch not saved', body: e instanceof ApiFailure ? e.message : 'Try again in a moment.', color: 'var(--status-out)' });
+        return false;
+      }
     },
-    [assign, setStatus],
+    [assign, load, toast],
   );
 
   return {

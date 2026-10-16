@@ -166,7 +166,7 @@ export function ProfileScreen() {
         </Section>
 
         {/* Alerts */}
-        <Section title="Alerts" hint="Changes save straight away.">
+        <Section id="alerts" title="Alerts" hint="Changes save straight away.">
           <div className="-mx-3">
             <AlertPrefsForm value={profile.alerts} onChange={(alerts) => update({ alerts }).catch((e: Error) => toast({ title: 'Couldn’t save', body: e.message }))} />
           </div>
@@ -275,14 +275,15 @@ export function ProfileScreen() {
   );
 }
 
-function Section({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
+function Section({ id, title, hint, children }: { id?: string; title: string; hint: string; children: React.ReactNode }) {
   return (
     <motion.section
       initial={{ opacity: 0, y: 14 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.15 }}
       transition={{ duration: 0.45, ease }}
-      className="rounded-xl bg-surface p-5 shadow-card"
+      id={id}
+      className="scroll-mt-24 rounded-xl bg-surface p-5 shadow-card"
     >
       <h2 className="font-display text-xl font-bold tracking-tight text-ink">{title}</h2>
       {hint && <p className="mt-0.5 font-body text-sm text-ink-muted">{hint}</p>}

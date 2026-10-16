@@ -4,10 +4,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BellIcon, CheckCircle2Icon, MessageSquareIcon, SparklesIcon } from 'lucide-react';
+import { BellIcon, CheckCircle2Icon, ChevronRightIcon, MessageSquareIcon, SparklesIcon } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/components/ui/cn';
-import { alerts, type Alert } from '@/data/nsukka';
+import { useAlerts } from '@/hooks/useAlerts';
+import type { AlertItem, AlertKind } from '@/lib/alerts';
+import { formatAgo } from '@/lib/geo';
 import { useProfile } from '@/lib/profile';
 
 const nav = [
@@ -16,7 +18,7 @@ const nav = [
   { href: '/report', label: 'Report' },
 ];
 
-const alertIcon: Record<Alert['kind'], { icon: React.ElementType; color: string }> = {
+const alertIcon: Record<AlertKind, { icon: React.ElementType; color: string }> = {
   prediction: { icon: SparklesIcon, color: 'var(--status-predicted)' },
   update: { icon: MessageSquareIcon, color: 'var(--ink)' },
   restored: { icon: CheckCircle2Icon, color: 'var(--status-restored)' },
@@ -27,10 +29,11 @@ export function AppHeader({ tone = 'day' }: { tone?: 'day' | 'night' }) {
   const night = tone === 'night';
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [read, setRead] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const unread = read ? 0 : alerts.filter((a) => a.unread).length;
-  const { profile } = useProfile();
+  const { profile, signedIn } = useProfile();
+  const { alerts, unread, loaded, markAllRead } = useAlerts(signedIn);
+  // Items that were unread when the panel opened keep their dot while it's open.
+  const [fresh, setFresh] = useState<Set<string>>(new Set());
   const initials = profile.name.split(' ').map((p) => p[0]).slice(0, 2).join('');
 
   useEffect(() => {
@@ -87,8 +90,11 @@ export function AppHeader({ tone = 'day' }: { tone?: 'day' | 'night' }) {
             aria-label={`Alerts${unread ? `, ${unread} unread` : ''}`}
             aria-expanded={open}
             onClick={() => {
+              if (!open) {
+                setFresh(new Set(alerts.filter((a) => a.unread).map((a) => a.id)));
+                markAllRead();
+              }
               setOpen((o) => !o);
-              setRead(true);
             }}
             className={cn(
               'relative flex h-11 w-11 items-center justify-center rounded-full transition-colors',
@@ -131,28 +137,62 @@ export function AppHeader({ tone = 'day' }: { tone?: 'day' | 'night' }) {
                 aria-label="Alerts"
               >
                 <p className="border-b border-line px-4 py-3 font-display text-base font-bold text-ink">Alerts</p>
-                <ul className="max-h-[60vh] divide-y divide-line overflow-y-auto">
-                  {alerts.map((a) => {
-                    const { icon: Icon, color } = alertIcon[a.kind];
-                    return (
-                      <li key={a.id} className="flex gap-3 px-4 py-3">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: color }}>
-                          <Icon className="h-4 w-4" aria-hidden="true" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-body text-sm font-semibold text-ink">{a.title}</p>
-                          <p className="mt-0.5 font-body text-sm leading-snug text-ink-muted">{a.body}</p>
-                          <p className="mt-1 font-body text-xs text-ink-faint">{a.when}</p>
-                        </div>
+                {alerts.length === 0 ? (
+                  <div className="px-4 py-8 text-center">
+                    <p className="font-body text-sm font-semibold text-ink">{loaded ? 'No alerts yet' : 'Loading alerts…'}</p>
+                    {loaded && (
+                      <p className="mx-auto mt-1 max-w-[16rem] font-body text-sm leading-snug text-ink-muted">
+                        We’ll tell you here when EEDC confirms a fault near your places, sends a team, or light comes back.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <ul className="max-h-[60vh] divide-y divide-line overflow-y-auto">
+                    {alerts.map((a) => (
+                      <li key={a.id}>
+                        <AlertRow alert={a} fresh={fresh.has(a.id)} onOpen={() => setOpen(false)} />
                       </li>
-                    );
-                  })}
-                </ul>
+                    ))}
+                  </ul>
+                )}
+                <Link
+                  href="/profile#alerts"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center justify-between border-t border-line px-4 py-3 font-body text-sm font-medium text-ink-muted transition-colors hover:bg-sunken hover:text-ink"
+                >
+                  Alert settings
+                  <ChevronRightIcon className="h-4 w-4" aria-hidden="true" />
+                </Link>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
       </div>
     </header>
+  );
+}
+
+function AlertRow({ alert: a, fresh, onOpen }: { alert: AlertItem; fresh: boolean; onOpen: () => void }) {
+  const { icon: Icon, color } = alertIcon[a.kind];
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(a.sentAt).getTime()) / 60_000));
+  const body = (
+    <>
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: color }}>
+        <Icon className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-body text-sm font-semibold text-ink">{a.title}</p>
+        {a.body && <p className="mt-0.5 font-body text-sm leading-snug text-ink-muted">{a.body}</p>}
+        <p className="mt-1 font-body text-xs text-ink-faint">{minutes < 1440 ? formatAgo(minutes) : new Date(a.sentAt).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })}</p>
+      </div>
+      {fresh && <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent" aria-label="New" />}
+    </>
+  );
+  return a.incidentId ? (
+    <Link href={`/map?focus=${a.incidentId}`} onClick={onOpen} className="flex gap-3 px-4 py-3 transition-colors hover:bg-sunken">
+      {body}
+    </Link>
+  ) : (
+    <div className="flex gap-3 px-4 py-3">{body}</div>
   );
 }

@@ -195,6 +195,10 @@ export interface ReportRow {
   note?: string;
   lat: number;
   lng: number;
+  /** Short reference shown to staff (e.g. VQ-3F2A9C) when `id` is a database id. */
+  ref?: string;
+  /** Why the abuse checks were suspicious of it (keys of flagLabel). */
+  flags?: string[];
 }
 
 const notes: Record<IssueType, string[]> = {

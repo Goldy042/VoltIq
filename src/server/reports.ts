@@ -34,6 +34,8 @@ import {
   clampTrust,
   reportWeight,
 } from './abuse';
+import { completeDispatches } from './operations';
+import { notifyIncident } from './notifications';
 
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 type Conn = Db | Tx;
@@ -456,7 +458,7 @@ async function adjustTrust(tx: Conn, userId: string, delta: number, reason: stri
 export const RESTORE_AT = 3;
 
 export async function answerLightBack(db: Db, userId: string, reportId: string, back: boolean, now = new Date()) {
-  return db.transaction(async (tx) => {
+  const result = await db.transaction(async (tx) => {
     const [r] = await tx.select().from(outageReports).where(and(eq(outageReports.id, reportId), eq(outageReports.userId, userId)));
     if (!r) throw new ReportError('not_found', 'That report isn’t yours or no longer exists.');
     if (r.lightBackAt) return { status: 'already_answered' as const };
@@ -480,6 +482,7 @@ export async function answerLightBack(db: Db, userId: string, reportId: string, 
       // Enough neighbours agree: mark it restored so EEDC and the map know.
       if (inc.status !== 'restored' && inc.lightBackCount >= RESTORE_AT && inc.lightBackCount >= inc.reporterCount / 2) {
         await tx.update(incidents).set({ status: 'restored', restoredAt: now, restoredBy: 'community' }).where(eq(incidents.id, inc.id));
+        await completeDispatches(tx, inc.id, now);
         return { status: 'restored' as const };
       }
       return { status: 'closed' as const };
@@ -508,6 +511,11 @@ export async function answerLightBack(db: Db, userId: string, reportId: string, 
     }
     return { status: 'still_off' as const };
   });
+  if (result.status === 'restored') {
+    const [r] = await db.select({ incidentId: outageReports.incidentId }).from(outageReports).where(eq(outageReports.id, reportId));
+    if (r?.incidentId) await notifyIncident(db, r.incidentId, 'restored', now);
+  }
+  return result;
 }
 
 /* ------------------------------------------------------------------ */

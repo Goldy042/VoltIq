@@ -249,7 +249,7 @@ function Frame({ children }: { children: React.ReactNode }) {
  * role can do. Replace with the signed-in Clerk user and their role.
  */
 function ActingAs({ compact = false }: { compact?: boolean }) {
-  const { staff, actingAs, setActingAs } = useOperations();
+  const { staff, actingAs, setActingAs, live } = useOperations();
   const office = staff.filter((s) => s.role === 'manager' || s.role === 'dispatcher' || s.role === 'team_lead');
   return (
     <label className={cn('relative flex items-center gap-2.5 rounded-sm', compact ? '' : 'px-2 py-1.5 hover:bg-raised')}>
@@ -262,7 +262,8 @@ function ActingAs({ compact = false }: { compact?: boolean }) {
           <span className="block font-body text-xs text-ink-faint">{roleMeta[actingAs.role].label}</span>
         </span>
       )}
-      {!compact && <ChevronsUpDownIcon className="h-4 w-4 text-ink-faint" aria-hidden="true" />}
+      {!compact && !live && <ChevronsUpDownIcon className="h-4 w-4 text-ink-faint" aria-hidden="true" />}
+      {!live && (
       <select
         aria-label="Viewing the dashboard as"
         value={actingAs.id}
@@ -275,6 +276,7 @@ function ActingAs({ compact = false }: { compact?: boolean }) {
           </option>
         ))}
       </select>
+      )}
     </label>
   );
 }

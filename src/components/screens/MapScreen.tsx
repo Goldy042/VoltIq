@@ -120,13 +120,18 @@ export function MapScreen({ view, initialFocus, embedded = false }: MapScreenPro
     [incidents],
   );
 
+  // Arriving from an alert: wait for the live feed, then open that outage once.
+  const focused = useRef(false);
   useEffect(() => {
-    if (!initialFocus) return;
+    if (!initialFocus || !loaded || focused.current) return;
     // Let the map mount before flying so the camera move is visible.
-    const t = window.setTimeout(() => select(initialFocus), 700);
+    const t = window.setTimeout(() => {
+      focused.current = true;
+      select(initialFocus);
+    }, 700);
     return () => window.clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialFocus]);
+  }, [initialFocus, loaded]);
 
   const [fix, setFix] = useState<Fix | null>(null);
   const [locating, setLocating] = useState(false);

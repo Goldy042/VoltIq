@@ -327,16 +327,27 @@ export const trustEvents = pgTable(
 /* DISPATCHES (a team assigned to fix a cluster of reports)           */
 /* ------------------------------------------------------------------ */
 
-export const dispatches = pgTable("dispatches", {
-  id: uuid("id").defaultRandom().primaryKey(),
-  teamId: uuid("team_id")
-    .references(() => teams.id)
-    .notNull(),
-  areaId: uuid("area_id").references(() => areas.id),
-  status: dispatchStatusEnum("status").default("assigned").notNull(),
-  assignedAt: timestamp("assigned_at").defaultNow().notNull(),
-  completedAt: timestamp("completed_at"),
-});
+export const dispatches = pgTable(
+  "dispatches",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    teamId: uuid("team_id")
+      .references(() => teams.id)
+      .notNull(),
+    areaId: uuid("area_id").references(() => areas.id),
+    // The outage this team was sent to fix
+    incidentId: uuid("incident_id").references(() => incidents.id),
+    // Staff member who sent them
+    assignedById: uuid("assigned_by_id").references((): AnyPgColumn => users.id),
+    status: dispatchStatusEnum("status").default("assigned").notNull(),
+    assignedAt: timestamp("assigned_at").defaultNow().notNull(),
+    completedAt: timestamp("completed_at"),
+  },
+  (table) => ({
+    incidentIdx: index("dispatches_incident_idx").on(table.incidentId),
+    teamStatusIdx: index("dispatches_team_status_idx").on(table.teamId, table.status),
+  })
+);
 
 // Join table: which reports a given dispatch is addressing (one dispatch can
 // resolve several overlapping reports in the same area at once)
@@ -411,6 +422,9 @@ export const notifications = pgTable(
     relatedPredictionId: uuid("related_prediction_id").references(
       () => predictions.id
     ),
+    // The outage this is about; also stops the same news being sent twice
+    incidentId: uuid("incident_id").references(() => incidents.id),
+    title: varchar("title", { length: 120 }).notNull().default(""),
     message: text("message").notNull(),
     sentAt: timestamp("sent_at").defaultNow().notNull(),
     readAt: timestamp("read_at"),
@@ -420,6 +434,25 @@ export const notifications = pgTable(
       table.userId,
       table.readAt
     ),
+    incidentIdx: index("notifications_incident_idx").on(table.incidentId),
+  })
+);
+
+// One row per browser/phone that allowed app notifications (Web Push)
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .references(() => users.id)
+      .notNull(),
+    endpoint: text("endpoint").notNull().unique(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    userIdx: index("push_subscriptions_user_idx").on(table.userId),
   })
 );
 

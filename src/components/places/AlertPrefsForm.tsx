@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { BellRingIcon, CheckCircle2Icon, MailIcon, MessageCircleIcon, MoonIcon, SmartphoneIcon, SparklesIcon, TruckIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/Switch';
+import { usePush, type PushState } from '@/hooks/usePush';
 import type { AlertPrefs } from '@/lib/profile';
 
 interface AlertPrefsFormProps {
@@ -14,6 +15,28 @@ interface AlertPrefsFormProps {
 export function AlertPrefsForm({ value, onChange }: AlertPrefsFormProps) {
   const set = (key: keyof AlertPrefs) => (checked: boolean) => onChange({ ...value, [key]: checked });
   const noChannel = !value.email && !value.sms && !value.push && !value.whatsapp;
+  const push = usePush();
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushError, setPushError] = useState<string | null>(null);
+  // Push is per device: the switch shows whether *this* phone will buzz.
+  const pushOn = value.push && push.state === 'on';
+
+  const togglePush = async (checked: boolean) => {
+    setPushError(null);
+    setPushBusy(true);
+    try {
+      if (checked) {
+        const state = await push.enable();
+        if (state === 'on' && !value.push) onChange({ ...value, push: true });
+      } else {
+        await push.disable();
+      }
+    } catch (e) {
+      setPushError(e instanceof Error ? e.message : 'Couldn’t turn on notifications. Try again.');
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -25,16 +48,17 @@ export function AlertPrefsForm({ value, onChange }: AlertPrefsFormProps) {
           <Switch
             icon={<MailIcon className="h-5 w-5" />}
             label="Email"
-            hint="Free, and keeps a record of every alert."
+            hint="Coming soon. We’ll start emailing alerts if this is on."
             checked={value.email}
             onChange={set('email')}
           />
           <Switch
             icon={<BellRingIcon className="h-5 w-5" />}
             label="App notifications"
-            hint="Instant and free while you have data."
-            checked={value.push}
-            onChange={set('push')}
+            hint={pushError ?? pushHint[push.state]}
+            checked={pushOn}
+            disabled={pushBusy || push.state === 'loading' || push.state === 'unsupported' || push.state === 'needs_install'}
+            onChange={togglePush}
           />
           <Switch
             icon={<SmartphoneIcon className="h-5 w-5" />}
@@ -96,3 +120,12 @@ export function AlertPrefsForm({ value, onChange }: AlertPrefsFormProps) {
     </div>
   );
 }
+
+const pushHint: Record<PushState, string> = {
+  loading: 'Checking this phone…',
+  unsupported: 'This browser can’t show notifications. You’ll still see every alert under the bell.',
+  needs_install: 'On iPhone, add VoltIq to your Home Screen first (Share → Add to Home Screen), then turn this on there.',
+  blocked: 'Blocked for this site. Allow notifications in your browser settings, then turn this on.',
+  off: 'Instant and free while you have data. Turn on for each phone you use.',
+  on: 'On for this phone. Instant and free while you have data.',
+};

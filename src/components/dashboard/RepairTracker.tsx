@@ -108,7 +108,7 @@ export function RepairTracker({ incident, crew }: { incident: Incident; crew?: C
           </span>
           <div>
             <p className="font-body text-sm font-semibold text-ink">
-              {crew.name} · {leadName(crew.id)}
+              {crew.name} · {crew.lead ?? leadName(crew.id)}
             </p>
             <p className="font-body text-xs text-ink-muted">{crewStatusLabel[crew.status]}</p>
           </div>

@@ -112,7 +112,7 @@ export function IncidentDetail({ incident, crews, view, onBack, affected, onAffe
                   </p>
                   {s === 'crew_dispatched' && crew && (
                     <p className="mt-0.5 font-body text-xs text-ink-muted">
-                      {crew.name} · {leadName(crew.id)} · {crewStatusLabel[crew.status]}
+                      {crew.name} · {crew.lead ?? leadName(crew.id)} · {crewStatusLabel[crew.status]}
                       {crew.status === 'en_route' && crew.etaMinutes !== undefined && ` · about ${crew.etaMinutes} min away`}
                     </p>
                   )}
@@ -251,7 +251,7 @@ function OperatorActions({
               >
                 <TruckIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span className="flex-1 font-body text-sm font-medium">
-                  {crew.name} <span className="font-normal opacity-70">· {leadName(crew.id)}</span>
+                  {crew.name} <span className="font-normal opacity-70">· {crew.lead ?? leadName(crew.id)}</span>
                 </span>
                 <span className="font-body text-xs tabular-nums opacity-70">{(meters / 1000).toFixed(1)} km</span>
               </button>
