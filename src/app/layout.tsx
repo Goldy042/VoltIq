@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { ClerkProvider } from '@clerk/nextjs';
-import { IBM_Plex_Mono, IBM_Plex_Sans, Schibsted_Grotesk } from 'next/font/google';
+import localFont from 'next/font/local';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ProfileProvider } from '@/lib/profile';
 import { getDb } from '@/lib/db/client';
@@ -9,27 +9,34 @@ import { getCurrentUser } from '@/server/users';
 import { OperationsProvider } from '@/lib/operations';
 import './globals.css';
 
-// Self-hosted through next/font so there is no render-blocking request to
-// fonts.googleapis.com and no layout shift. globals.css maps these onto
-// --font-display/--font-body.
-const schibsted = Schibsted_Grotesk({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+// Font files live in ./fonts (latin subsets from Fontsource, SIL Open Font
+// License) so builds never depend on downloading from Google — a slow or
+// failed fetch there breaks `next build`. globals.css maps these onto
+// --font-display / --font-body / --font-mono.
+const schibsted = localFont({
+  src: './fonts/schibsted-grotesk-latin-wght-normal.woff2',
+  weight: '400 900',
   variable: '--font-schibsted',
   display: 'swap',
 });
 
-const plex = IBM_Plex_Sans({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const plex = localFont({
+  src: [
+    { path: './fonts/ibm-plex-sans-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/ibm-plex-sans-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-plex',
   display: 'swap',
 });
 
 // Tabular figures for the operator control room: counts, IDs, clocks.
-const plexMono = IBM_Plex_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const plexMono = localFont({
+  src: [
+    { path: './fonts/ibm-plex-mono-latin-400-normal.woff2', weight: '400', style: 'normal' },
+    { path: './fonts/ibm-plex-mono-latin-500-normal.woff2', weight: '500', style: 'normal' },
+    { path: './fonts/ibm-plex-mono-latin-600-normal.woff2', weight: '600', style: 'normal' },
+  ],
   variable: '--font-plex-mono',
   display: 'swap',
 });
