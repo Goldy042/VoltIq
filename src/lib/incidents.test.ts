@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canMoveStatus, describeIncident, estimateHouseholds, medianVoltage, snapDots, MAX_DOTS_PER_INCIDENT } from './incidents';
+import { bucketReports, canMoveStatus, describeIncident, estimateHouseholds, medianVoltage, snapDots, MAX_DOTS_PER_INCIDENT } from './incidents';
 
 test('households: a share of the area, at least the reporters, at most the area', () => {
   assert.equal(estimateHouseholds(1000, 500, 250, 3), 250); // (250/500)² = ¼ of 1000
@@ -47,4 +47,13 @@ test('staff status changes follow the repair flow', () => {
 test('fallback description', () => {
   assert.equal(describeIncident('no_power', 1), 'One resident reported no light here.');
   assert.equal(describeIncident('low_voltage', 4), '4 residents reported low voltage here.');
+});
+
+test('reports bucket into at most 24 bars, never dropping any', () => {
+  const start = new Date('2026-10-23T10:00:00Z');
+  const short = bucketReports([start, new Date('2026-10-23T10:20:00Z')], start, new Date('2026-10-23T11:00:00Z'));
+  assert.deepEqual(short, { counts: [1, 1, 0, 0], minutes: 15 });
+  const long = bucketReports([new Date('2026-10-25T09:00:00Z')], start, new Date('2026-10-25T10:00:00Z'));
+  assert.ok(long.counts.length <= 24);
+  assert.equal(long.counts.reduce((a, b) => a + b, 0), 1);
 });

@@ -18,7 +18,7 @@ const minutesSince = (iso: string) => (Date.now() - new Date(iso).getTime()) / 6
  * says the light is back): "Is your light back?" One tap closes the report or
  * keeps it counted; enough "yes" answers restore the outage for everyone.
  */
-export function LightBackPrompt() {
+export function LightBackPrompt({ refreshKey }: { refreshKey?: unknown }) {
   const { signedIn } = useProfile();
   const toast = useToast();
   const [queue, setQueue] = useState<OpenReport[]>([]);
@@ -29,7 +29,8 @@ export function LightBackPrompt() {
     api<{ reports: OpenReport[] }>('/api/reports/prompts')
       .then((r) => setQueue(r.reports))
       .catch(() => {});
-  }, [signedIn]);
+    // Re-check when outages change (e.g. EEDC marks yours restored).
+  }, [signedIn, refreshKey]);
 
   const current = queue[0];
 

@@ -46,6 +46,10 @@ interface OpsContextValue extends OpsState {
   toggleShift: (staffId: string) => void;
   createTeam: (name: string, zone: string[]) => string;
   renameTeam: (teamId: string, name: string) => void;
+  /** Manager only. Adds someone by email (or promotes the resident with that email). Throws ApiFailure for form errors. */
+  addStaff: (input: { email: string; name: string; role: StaffRole; teamId: string | null }) => Promise<void>;
+  /** Manager only. They keep a resident account but lose console access. */
+  removeStaff: (staffId: string) => void;
   reset: () => void;
 }
 
@@ -92,6 +96,11 @@ const rules = {
   renameTeam: (s: OpsState, teamId: string, name: string): OpsState => ({
     ...s,
     teams: s.teams.map((t) => (t.id === teamId ? { ...t, name } : t)),
+  }),
+  removeStaff: (s: OpsState, staffId: string): OpsState => ({
+    ...s,
+    staff: s.staff.filter((p) => p.id !== staffId),
+    teams: s.teams.map((t) => (t.leadId === staffId ? { ...t, leadId: null, leadAssignedBy: null } : t)),
   }),
 };
 
@@ -180,6 +189,16 @@ export function OperationsProvider({ children, initial }: { children: React.Reac
         return id;
       },
       renameTeam: (teamId, name) => commit((s) => rules.renameTeam(s, teamId, name), { action: 'renameTeam', teamId, name }),
+      addStaff: async (input) => {
+        if (!live) {
+          const id = `s-${Date.now().toString(36)}`;
+          commit((s) => ({ ...s, staff: [...s.staff, { id, name: input.name.trim(), role: input.role, phone: '', teamId: input.teamId, onShift: false, email: input.email, invited: true }] }));
+          return;
+        }
+        const org = await api<Org>('/api/operator/org', { body: { action: 'addStaff', ...input } });
+        setState((s) => ({ ...s, staff: org.staff, teams: org.teams }));
+      },
+      removeStaff: (staffId) => commit((s) => rules.removeStaff(s, staffId), { action: 'removeStaff', staffId }),
       reset: () => {
         if (!live) commit(() => seed);
       },

@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { CheckIcon, LockIcon, MinusIcon, SearchIcon } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
+import { CheckIcon, LockIcon, MinusIcon, SearchIcon, UserPlusIcon, UserXIcon } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { permissionLabel, roleMeta, type Permission, type StaffRole } from '@/data/operations';
 import { useOperations } from '@/lib/operations';
+import { AddStaffForm } from './AddStaffForm';
 import { Avatar, Card, FilterPill, Page, PageHeader } from './parts';
 
 const roles = Object.keys(roleMeta) as StaffRole[];
@@ -12,7 +15,9 @@ const permissions = Object.keys(permissionLabel) as Permission[];
 
 export function OperatorStaff() {
   const toast = useToast();
-  const { staff, teams, allowed, actingAs, setRole, moveToTeam, toggleShift } = useOperations();
+  const { staff, teams, allowed, actingAs, setRole, moveToTeam, toggleShift, removeStaff } = useOperations();
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<StaffRole | 'all'>('all');
   const canRoles = allowed('manage_roles');
@@ -22,7 +27,7 @@ export function OperatorStaff() {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return staff
-      .filter((s) => (roleFilter === 'all' || s.role === roleFilter) && (!q || s.name.toLowerCase().includes(q)))
+      .filter((s) => (roleFilter === 'all' || s.role === roleFilter) && (!q || s.name.toLowerCase().includes(q) || s.email?.toLowerCase().includes(q)))
       .sort((a, b) => roles.indexOf(a.role) - roles.indexOf(b.role) || a.name.localeCompare(b.name));
   }, [staff, query, roleFilter]);
 
@@ -41,7 +46,16 @@ export function OperatorStaff() {
             </span>
           )
         }
+        actions={
+          canRoles && (
+            <Button size="sm" onClick={() => setAdding((a) => !a)} leading={<UserPlusIcon className="h-4 w-4" aria-hidden="true" />}>
+              Add staff
+            </Button>
+          )
+        }
       />
+
+      <AnimatePresence>{adding && <AddStaffForm onDone={() => setAdding(false)} />}</AnimatePresence>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {roles.map((r) => (
@@ -67,7 +81,7 @@ export function OperatorStaff() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name"
+              placeholder="Search by name or email"
               className="h-10 w-full rounded-sm border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
             />
           </label>
@@ -88,9 +102,10 @@ export function OperatorStaff() {
                     <p className="truncate font-semibold text-ink">
                       {s.name}
                       {s.id === actingAs.id && <span className="ml-1.5 font-normal text-ink-faint">(you)</span>}
+                      {s.invited && <span className="ml-1.5 rounded-full bg-sunken px-2 py-0.5 text-2xs font-medium text-ink-muted">Hasn’t signed in yet</span>}
                     </p>
-                    <p className="text-xs tabular-nums text-ink-faint">
-                      {s.phone}
+                    <p className="truncate text-xs tabular-nums text-ink-faint">
+                      {s.phone || s.email}
                       {s.role === 'team_lead' && ` · ${leading ? `Leads ${leading.name}` : 'Not leading a team yet'}`}
                     </p>
                   </div>
@@ -153,6 +168,36 @@ export function OperatorStaff() {
                     <span className="text-ink-muted">· {teams.find((t) => t.id === s.teamId)?.name ?? 'Unassigned'}</span>
                   )}
                 </div>
+                {canRoles && s.id !== actingAs.id && !lastManager && (
+                  removing === s.id ? (
+                    <span className="flex shrink-0 items-center gap-1.5 sm:order-last">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => {
+                          removeStaff(s.id);
+                          setRemoving(null);
+                          toast({ title: `${s.name} removed from staff`, body: 'They keep a resident account but can’t open the console.' });
+                        }}
+                      >
+                        Remove access
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setRemoving(null)}>
+                        Keep
+                      </Button>
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${s.name} from staff`}
+                      title="Remove from staff"
+                      onClick={() => setRemoving(s.id)}
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-sunken hover:text-status-out sm:order-last"
+                    >
+                      <UserXIcon className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  )
+                )}
               </li>
             );
           })}

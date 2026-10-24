@@ -23,7 +23,6 @@ import {
   bandHours,
   hourlyOutlook,
   issueMeta,
-  myReports,
   predictions,
   statusMeta,
   supplyWeek,
@@ -33,6 +32,15 @@ import { distanceMeters, formatAgo } from '@/lib/geo';
 import { describeLocation } from '@/lib/address';
 import { placeName, useProfile } from '@/lib/profile';
 import { LightBackPrompt } from '@/components/dashboard/LightBackPrompt';
+import { MyReportsList } from '@/components/dashboard/MyReportsList';
+import { useMyReports } from '@/hooks/useMyReports';
+import { useLightChecks } from '@/hooks/useLightChecks';
+import { LightCheckCard } from '@/components/outage/LightCheckCard';
+import { placeVsOutage, type CheckAnswer } from '@/lib/checks';
+import { distanceToCells } from '@/lib/footprint';
+
+/** Reports shown on the dashboard; the rest are on /reports. */
+const PREVIEW = 4;
 
 const StreetGlow = dynamic(() => import('@/components/dashboard/StreetGlow').then((m) => m.StreetGlow), {
   ssr: false,
@@ -46,14 +54,28 @@ const rise = (i: number) => ({
   transition: { delay: 0.1 + i * 0.07, duration: 0.55, ease },
 });
 
-/** Big status word, like "Rain" in a weather app. */
-function statusWord(i?: Incident) {
-  if (!i || i.status === 'restored') return { word: 'Light on', color: '#3ccf8a' };
-  if (i.issue === 'no_power') return { word: 'No light', color: '#ff5c5f' };
-  if (i.issue === 'low_voltage') return { word: 'Low voltage', color: '#ff9a3d' };
-  return { word: 'Unstable', color: '#ff9a3d' };
+/**
+ * Big status word, like "Rain" in a weather app. Until you've said it's off
+ * at your place too, an outage on your block is "nearby", not yours.
+ */
+function statusWord(i?: Incident, backOn?: Incident, confirmed = true) {
+  if (!i) return { word: backOn ? 'Light is back' : 'Light on', color: '#3ccf8a' };
+  const near = confirmed ? '' : ' nearby';
+  if (i.issue === 'no_power') return { word: `No light${near}`, color: '#ff5c5f' };
+  if (i.issue === 'low_voltage') return { word: `Low voltage${near}`, color: '#ff9a3d' };
+  return { word: `Unstable${near}`, color: '#ff9a3d' };
 }
 
+/**
+ * Your outage: one you reported (or said "no light" to), else one whose dark
+ * blocks your place is on. Being in the same area isn't enough: five homes
+ * in Odenigwe aren't all of Odenigwe.
+ */
+function pickMine(list: Incident[], home: { lat: number; lng: number }, isMine: (i: Incident) => boolean, isLit: (i: Incident) => boolean) {
+  return list
+    .filter((i) => isMine(i) || (placeVsOutage(home, i) === 'inside' && !isLit(i)))
+    .sort((a, b) => Number(isMine(b)) - Number(isMine(a)) || distanceMeters(a, home) - distanceMeters(b, home))[0];
+}
 
 export function DashboardScreen() {
   const toast = useToast();
@@ -70,10 +92,57 @@ export function DashboardScreen() {
   const home = useMemo(() => ({ lat: primary.lat, lng: primary.lng }), [primary.lat, primary.lng]);
   // A place saved before areas were seeded may have no area yet; fall back to the nearest.
   const area = areaById[primary.areaId] ?? nearestArea(primary);
-  const mine = incidents.find((i) => i.areaId === area.id && i.status !== 'restored');
+  // Changes whenever any outage changes status, so history and "is your light back?" catch up with EEDC.
+  const feedVersion = useMemo(() => incidents.map((i) => `${i.id}:${i.status}`).join('|'), [incidents]);
+  const history = useMyReports(`${feedVersion}|${counted}`);
+  const checks = useLightChecks();
+  // Answered on this visit: their card stays to say thanks.
+  const [justAnswered, setJustAnswered] = useState<string[]>([]);
+  const reported = useMemo(
+    () => new Set(history.reports.filter((r) => r.incidentId && r.status !== 'withdrawn').map((r) => r.incidentId!)),
+    [history.reports],
+  );
+  const isMine = (i: Incident) => reported.has(i.id) || checks.answers[i.id] === 'off';
+  const isLit = (i: Incident) => checks.answers[i.id] === 'on';
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const mine = useMemo(() => pickMine(incidents.filter((i) => i.status !== 'restored'), home, isMine, isLit), [incidents, home, reported, checks.answers]);
+  // Fixed in the last few hours where you live: say so instead of quietly going back to "no problems".
+  const backOn = useMemo(
+    () => (mine ? undefined : pickMine(incidents.filter((i) => i.status === 'restored'), home, (i) => reported.has(i.id), () => false)),
+    [mine, incidents, home, reported],
+  );
+  // Outages around (not on) your place you haven't told us about: ask "do you have light?".
+  const toAsk = useMemo(
+    () =>
+      incidents
+        .filter((i) => i.id !== mine?.id && i.status !== 'restored' && i.issue === 'no_power' && !reported.has(i.id))
+        .filter((i) => placeVsOutage(home, i) && (!checks.answers[i.id] || justAnswered.includes(i.id)))
+        .map((i) => ({ i, d: i.cells?.off.length ? distanceToCells(home, i.cells.off) : Math.max(0, distanceMeters(i, home) - i.radius) }))
+        .sort((a, b) => a.d - b.d)[0],
+    [incidents, mine?.id, reported, home, checks.answers, justAnswered],
+  );
+  // Your place is on the outage's blocks but you haven't said it's off for you too.
+  const confirmed = !mine || counted || isMine(mine);
+  // A different (or newly fixed) outage: "I have this too" applies afresh.
+  useEffect(() => setCounted(false), [mine?.id]);
   const crew = mine?.crewId ? crews.find((c) => c.id === mine.crewId) : undefined;
   const forecast = predictions.find((p) => p.areaId === area.id || p.area.includes(area.name));
-  const status = statusWord(mine);
+  const status = statusWord(mine, backOn, confirmed);
+
+  const answerCheck = async (incidentId: string, value: CheckAnswer) => {
+    await checks.answer(incidentId, value);
+    setJustAnswered((ids) => [...ids, incidentId]);
+    if (value === 'off') void history.reload();
+  };
+
+  const lightOnHere = async () => {
+    if (!mine) return;
+    try {
+      await answerCheck(mine.id, 'on');
+    } catch (e) {
+      toast({ title: 'Couldn’t send', body: e instanceof Error ? e.message : 'Try again.' });
+    }
+  };
   const first = profile.name.split(' ')[0];
 
   const nearby = useMemo(
@@ -121,7 +190,7 @@ export function DashboardScreen() {
       body:
         result?.outcome === 'already_counted'
           ? 'You reported this a few minutes ago. Tell us again later if it’s still off.'
-          : `Your report joins ${area.name}’s outage`,
+          : `Your report joins the outage near ${mine.place}`,
       icon: <IssueIcon issue={mine.issue} className="h-4 w-4" />,
       color: issueMeta[mine.issue].color,
     });
@@ -130,7 +199,7 @@ export function DashboardScreen() {
   return (
     <div className="min-h-dvh bg-canvas pb-28 lg:pb-16">
       <AppHeader tone={pastHero ? 'day' : 'night'} />
-      <LightBackPrompt />
+      <LightBackPrompt refreshKey={feedVersion} />
 
       {/* ---- Hero: your street, tonight ---- */}
       <section ref={heroRef} aria-labelledby="status-word" className="relative bg-[#0b0b0d] text-white lg:h-[600px]">
@@ -164,14 +233,25 @@ export function DashboardScreen() {
             </motion.h1>
 
             <motion.p {...rise(2)} className="mt-3 font-body text-lg leading-snug text-white/75">
-              {mine ? (
+              {mine && !confirmed ? (
+                <>
+                  <span className="font-semibold text-white">
+                    <AnimatedCount value={mine.reports} /> {mine.reports === 1 ? 'neighbour' : 'neighbours'}
+                  </span>{' '}
+                  on your block reported {issueMeta[mine.issue].label.toLowerCase()}. Is it the same at your place?
+                </>
+              ) : mine ? (
                 <>
                   {issueMeta[mine.issue].description}.{' '}
                   <span className="font-semibold text-white">
-                    <AnimatedCount value={mine.reports} /> neighbours
+                    <AnimatedCount value={mine.reports} /> {mine.reports === 1 ? 'neighbour' : 'neighbours'}
                   </span>{' '}
-                  in {area.name} reported it.
+                  reported it near {mine.place}.
                 </>
+              ) : backOn ? (
+                <>The outage near {backOn.place} has been fixed. Still off at your place? Tell us below.</>
+              ) : toAsk ? (
+                <>Neighbours near {toAsk.i.place} report no light, but your place isn’t in it.</>
               ) : (
                 <>No problems reported in {area.name} right now.</>
               )}
@@ -202,16 +282,27 @@ export function DashboardScreen() {
                   className="inline-flex h-14 sm:flex-1 items-center justify-center gap-2 rounded-full bg-white px-6 font-body text-base font-semibold text-[#111113] disabled:bg-white/15 disabled:text-white"
                 >
                   {counted && <CheckIcon className="h-5 w-5" aria-hidden="true" />}
-                  {counted ? 'You’re counted' : 'I have this too'}
+                  {counted ? 'You’re counted' : confirmed ? 'I have this too' : 'Mine is off too'}
                 </motion.button>
               )}
+              {mine && !confirmed ? (
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.97 }}
+                  onClick={lightOnHere}
+                  className="inline-flex h-14 sm:flex-1 items-center justify-center gap-2 rounded-full border border-white/20 px-6 font-body text-base font-semibold text-white transition-colors hover:bg-white/10"
+                >
+                  I have light
+                </motion.button>
+              ) : (
               <Link
                 href="/report"
                 className="inline-flex h-14 sm:flex-1 items-center justify-center gap-2 rounded-full border border-white/20 px-6 font-body text-base font-semibold text-white transition-colors hover:bg-white/10"
               >
                 <PlusIcon className="h-5 w-5" aria-hidden="true" />
-                {mine ? 'Something else' : 'Report a problem'}
+                {mine ? 'Something else' : backOn ? 'Still off at my place' : 'Report a problem'}
               </Link>
+              )}
             </motion.div>
           </div>
         </div>
@@ -224,6 +315,17 @@ export function DashboardScreen() {
           wrappers are `contents` on phones so the order classes apply. */}
       <main className="mx-auto mt-6 flex max-w-6xl flex-col gap-4 px-4 lg:mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6 lg:px-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="contents lg:flex lg:min-w-0 lg:flex-col lg:gap-6">
+          {toAsk && (
+            <motion.div {...rise(5)} className="order-none">
+              <LightCheckCard
+                incident={toAsk.i}
+                placeLabel={placeName(primary).toLowerCase()}
+                distanceM={toAsk.d}
+                answered={justAnswered.includes(toAsk.i.id) ? checks.answers[toAsk.i.id] : undefined}
+                onAnswer={(v) => answerCheck(toAsk.i.id, v)}
+              />
+            </motion.div>
+          )}
           {forecast && (
             <motion.div {...rise(5)} className="order-1">
               <HourlyOutlook
@@ -302,39 +404,24 @@ export function DashboardScreen() {
                   Your reports
                 </h2>
               </div>
-              <span className="font-body text-sm text-ink-faint">{myReports.length} total</span>
+              {history.reports.length > PREVIEW && (
+                <Link href="/reports" className="inline-flex items-center gap-1 font-body text-sm font-medium text-ink-muted hover:text-ink">
+                  See all {history.reports.length}
+                  <ChevronRightIcon className="h-4 w-4" aria-hidden="true" />
+                </Link>
+              )}
             </div>
-            <ol className="mt-4 space-y-0">
-              {myReports.map((r, idx) => (
-                <li key={r.id} className="relative flex gap-4 pb-5 last:pb-0">
-                  {idx < myReports.length - 1 && (
-                    <span className="absolute left-[19px] top-10 h-[calc(100%-36px)] w-0.5 bg-line" aria-hidden="true" />
-                  )}
-                  <span
-                    className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white"
-                    style={{ backgroundColor: r.status === 'restored' ? 'var(--status-restored)' : issueMeta[r.issue].color }}
-                  >
-                    {r.status === 'restored' ? (
-                      <CheckIcon className="h-4 w-4" strokeWidth={3} aria-hidden="true" />
-                    ) : (
-                      <IssueIcon issue={r.issue} className="h-4 w-4" />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1 pt-0.5">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-body text-sm font-semibold text-ink">
-                        {issueMeta[r.issue].label} · {r.place}
-                      </p>
-                      <StatusBadge status={r.status} />
-                    </div>
-                    <p className="mt-0.5 font-body text-xs text-ink-muted">
-                      {r.when} · {r.id}
-                    </p>
-                    {r.note && <p className="mt-1.5 font-body text-sm text-ink-muted">“{r.note}”</p>}
-                  </div>
-                </li>
-              ))}
-            </ol>
+            <div className="mt-4">
+              {!history.loaded ? (
+                <p className="font-body text-sm text-ink-muted">Loading your reports…</p>
+              ) : history.reports.length === 0 ? (
+                <p className="font-body text-sm text-ink-muted">
+                  {history.failed ? 'Couldn’t load your reports. Check your connection.' : 'Nothing yet. When your light goes, report it and track the repair here.'}
+                </p>
+              ) : (
+                <MyReportsList reports={history.reports.slice(0, PREVIEW)} onWithdraw={history.withdraw} />
+              )}
+            </div>
           </section>
         </aside>
       </main>

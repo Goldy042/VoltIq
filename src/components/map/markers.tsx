@@ -127,6 +127,15 @@ export function IncidentPin({
   );
 }
 
+/** A quieter outage: a small dot in its colour, until you zoom in or select it. */
+export function MiniPin({ incident }: { incident: Incident }) {
+  return (
+    <motion.span {...pop} className="flex origin-bottom flex-col items-center pb-0.5" title={`${incident.area}: ${incident.reports} reports`}>
+      <span className="block h-3.5 w-3.5 rounded-full border-2 border-white shadow-pin" style={{ backgroundColor: incidentColor(incident) }} />
+    </motion.span>
+  );
+}
+
 /** Several nearby areas folded into one calm white pin. Tap to zoom in. */
 export function GroupPin({ members, bump }: { members: Incident[]; bump?: number }) {
   const shown = members.slice(0, 3);

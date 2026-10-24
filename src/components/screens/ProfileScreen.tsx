@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CopyIcon,
-  LogOutIcon,
   MailIcon,
   MapPinnedIcon,
   PencilIcon,
@@ -19,6 +18,7 @@ import {
   XIcon,
 } from 'lucide-react';
 import { AppHeader } from '@/components/app/AppHeader';
+import { SignOutButton } from '@/components/auth/SignOutButton';
 import { AppTabBar } from '@/components/app/AppTabBar';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
@@ -26,7 +26,7 @@ import { cn } from '@/components/ui/cn';
 import { useToast } from '@/components/ui/Toast';
 import { AlertPrefsForm } from '@/components/places/AlertPrefsForm';
 import { PlacePicker } from '@/components/places/PlacePicker';
-import { myReports } from '@/data/nsukka';
+import { useMyReports } from '@/hooks/useMyReports';
 import { describeLocation } from '@/lib/address';
 import { placeName, useProfile, type SavedPlace } from '@/lib/profile';
 
@@ -34,7 +34,7 @@ const ease = [0.23, 1, 0.32, 1] as const;
 
 export function ProfileScreen() {
   const toast = useToast();
-  const { profile, primary, update, savePlace, removePlace, setPrimary } = useProfile();
+  const { profile, primary, update, savePlace, removePlace, setPrimary, signedIn, trustScore } = useProfile();
   const [details, setDetails] = useState({ name: profile.name, phone: profile.phone });
   const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
   const [editing, setEditing] = useState<SavedPlace | 'new' | null>(null);
@@ -46,7 +46,10 @@ export function ProfileScreen() {
 
   const dirty = details.name !== profile.name || details.phone !== profile.phone;
   const initials = profile.name.split(' ').map((p) => p[0]).slice(0, 2).join('');
-  const confirmed = myReports.filter((r) => r.status !== 'reported').length;
+  const { reports } = useMyReports();
+  const counted = reports.filter((r) => r.status !== 'withdrawn' && r.status !== 'not_accepted');
+  const confirmed = counted.filter((r) => r.status !== 'reported').length;
+  const trust = trustLevel(trustScore);
 
   const saveDetails = () => {
     const next: typeof errors = {};
@@ -81,10 +84,14 @@ export function ProfileScreen() {
             <p className="truncate font-body text-sm text-ink-muted">
               {placeName(primary)} · {describeLocation(primary).area.name}
             </p>
-            <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#e6f5ed] px-2.5 py-1 font-body text-xs font-semibold text-status-restored">
+            <Link
+              href="/reports"
+              className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-body text-xs font-semibold ${trust.className}`}
+            >
               <ShieldCheckIcon className="h-3.5 w-3.5" aria-hidden="true" />
-              Trusted reporter · {confirmed} of {myReports.length} reports confirmed
-            </p>
+              {trust.label}
+              {counted.length > 0 && ` · ${confirmed} of ${counted.length} reports confirmed`}
+            </Link>
           </div>
         </motion.section>
 
@@ -214,14 +221,13 @@ export function ProfileScreen() {
         {/* Account */}
         <Section title="Account" hint="">
           <div className="space-y-1">
-            <Link href="/onboarding" className="flex items-center gap-3 rounded-lg p-3 font-body text-sm font-semibold text-ink hover:bg-canvas">
+            <Link href="/onboarding?again=1" className="flex items-center gap-3 rounded-lg p-3 font-body text-sm font-semibold text-ink hover:bg-canvas">
               <RotateCcwIcon className="h-5 w-5 text-ink-muted" aria-hidden="true" />
               Run setup again
             </Link>
-            <Link href="/login" className="flex items-center gap-3 rounded-lg p-3 font-body text-sm font-semibold text-status-out hover:bg-canvas">
-              <LogOutIcon className="h-5 w-5" aria-hidden="true" />
-              Sign out
-            </Link>
+            {signedIn && (
+              <SignOutButton className="flex w-full items-center gap-3 rounded-lg p-3 text-left font-body text-sm font-semibold text-status-out hover:bg-canvas disabled:opacity-60" />
+            )}
           </div>
         </Section>
       </main>
@@ -316,4 +322,11 @@ function SmallAction({
       {children}
     </button>
   );
+}
+
+/** Plain-language badge for the 0–100 trust score (starts at 50). */
+function trustLevel(score: number | null) {
+  if (score === null || score >= 70) return { label: 'Trusted reporter', className: 'bg-[#e6f5ed] text-status-restored' };
+  if (score >= 40) return { label: 'Reporter', className: 'bg-sunken text-ink-muted' };
+  return { label: 'Reports under review', className: 'bg-[#fdf1e3] text-status-low' };
 }

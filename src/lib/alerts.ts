@@ -3,12 +3,14 @@
  * in which words, and when a phone should stay quiet.
  */
 
+import { formatEta } from './incidents';
 import { defaultAlerts, type AlertPrefs } from './profile-types';
 
 /** Outage news residents can be told about. Forecasts arrive in Phase 4. */
-export type AlertEvent = 'confirmed' | 'crew_dispatched' | 'restored';
+export type AlertEvent = 'confirmed' | 'crew_dispatched' | 'restored' | 'update';
 
-export type AlertKind = 'prediction' | 'update' | 'restored';
+/** `check` is "do you have light?" (see ./checks). */
+export type AlertKind = 'prediction' | 'update' | 'restored' | 'check';
 
 /** One entry in the alerts inbox. */
 export interface AlertItem {
@@ -28,6 +30,8 @@ export const ALERT_MARGIN_M = 150;
 
 /** The same outage news isn't repeated to someone within this window (e.g. a team reassigned). */
 export const ALERT_REPEAT_MS = 6 * 3_600_000;
+/** EEDC updates (new fix time, new note) can come more often, but not in bursts. */
+export const UPDATE_REPEAT_MS = 10 * 60_000;
 
 const LAGOS_OFFSET_H = 1;
 
@@ -52,8 +56,18 @@ export function shouldPush(prefs: AlertPrefs, event: AlertEvent, now: Date) {
   return event === 'restored' || !prefs.quietHours || !isQuietHour(now);
 }
 
-export function alertCopy(event: AlertEvent, place: string, restoredBy?: string | null): { title: string; body: string } {
+export function alertCopy(
+  event: AlertEvent,
+  place: string,
+  extra: { restoredBy?: string | null; etaAt?: Date | null; note?: string | null } = {},
+): { title: string; body: string } {
+  const eta = extra.etaAt ? `EEDC expects light back ${formatEta(extra.etaAt.toISOString())}.` : '';
   switch (event) {
+    case 'update':
+      return {
+        title: `Update from EEDC near ${place}`,
+        body: [extra.note, eta].filter(Boolean).join(' ') || 'EEDC posted an update on this outage.',
+      };
     case 'confirmed':
       return {
         title: `EEDC confirmed the fault near ${place}`,
@@ -62,10 +76,10 @@ export function alertCopy(event: AlertEvent, place: string, restoredBy?: string 
     case 'crew_dispatched':
       return {
         title: `A repair team is assigned near ${place}`,
-        body: 'EEDC has sent a team to the fault. We’ll tell you when light is back.',
+        body: eta ? `EEDC has sent a team to the fault. ${eta}` : 'EEDC has sent a team to the fault. We’ll tell you when light is back.',
       };
     case 'restored':
-      return restoredBy === 'community'
+      return extra.restoredBy === 'community'
         ? {
             title: `Neighbours say light is back near ${place}`,
             body: 'Still off at your place? Open the map and tell us — it reopens the outage.',
@@ -80,5 +94,6 @@ export function alertCopy(event: AlertEvent, place: string, restoredBy?: string 
 export function kindOf(type: string): AlertKind {
   if (type === 'resolved') return 'restored';
   if (type === 'predicted_outage') return 'prediction';
+  if (type === 'light_check') return 'check';
   return 'update';
 }

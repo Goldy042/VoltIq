@@ -1,7 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 
-// Public: the landing page, sign-in/up and the live map. Everything else needs an account.
-const isPublic = createRouteMatcher(['/', '/login(.*)', '/signup(.*)', '/map(.*)']);
+// Public: the landing page, sign-in/up, the live map and each outage's page. Everything else needs an account.
+const isPublic = createRouteMatcher(['/', '/login(.*)', '/signup(.*)', '/map(.*)', '/outages(.*)']);
 const isApi = createRouteMatcher(['/api(.*)']);
 
 export default clerkMiddleware(async (auth, req) => {

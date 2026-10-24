@@ -12,7 +12,7 @@ import { defaultAlerts, type AlertPrefs, type PlaceLabel, type Profile, type Sav
 import { ReportError, suggestAreas } from './reports';
 
 const LABELS: PlaceLabel[] = ['home', 'hostel', 'shop', 'work', 'other'];
-const ALERT_KEYS: Array<keyof AlertPrefs> = ['email', 'sms', 'push', 'whatsapp', 'forecasts', 'repairs', 'restored', 'quietHours'];
+const ALERT_KEYS: Array<keyof AlertPrefs> = ['email', 'sms', 'push', 'whatsapp', 'forecasts', 'repairs', 'restored', 'checks', 'quietHours'];
 
 type UserRow = typeof users.$inferSelect;
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/components/ui/cn';
+import { SignOutButton } from '@/components/auth/SignOutButton';
 import { roleMeta } from '@/data/operations';
 import { useSharedOutageFeed } from '@/hooks/useOutageFeed';
 import { useOperations } from '@/lib/operations';
@@ -166,6 +167,7 @@ function Frame({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <ActingAs />
+          <OperatorSignOut className="flex h-9 w-full items-center gap-2.5 rounded-sm px-2 font-body text-sm text-ink-muted transition-colors hover:bg-raised hover:text-ink" iconClassName="h-4 w-4" />
         </div>
       </aside>
 
@@ -206,10 +208,19 @@ function Frame({ children }: { children: React.ReactNode }) {
             <span className="lg:hidden">
               <ActingAs compact />
             </span>
+            <OperatorSignOut
+              iconOnly
+              className="flex h-8 w-8 items-center justify-center rounded-sm text-ink-muted ring-1 ring-line hover:text-ink lg:hidden"
+              iconClassName="h-4 w-4"
+            />
           </div>
         </header>
 
-        <main className={cn('min-h-0 min-w-0 flex-1', isMap ? 'relative overflow-hidden' : 'overflow-y-auto overflow-x-hidden')}>
+        {/* `relative` makes this the containing block for absolutely positioned children
+            (screen-reader-only labels, chart tooltips). Without it they are placed against
+            the page instead, at their position deep inside this scroller, and stretch the
+            whole document — a blank strip under the console. */}
+        <main className={cn('relative min-h-0 min-w-0 flex-1', isMap ? 'overflow-hidden' : 'overflow-y-auto overflow-x-hidden')}>
           {children}
         </main>
 
@@ -279,4 +290,10 @@ function ActingAs({ compact = false }: { compact?: boolean }) {
       )}
     </label>
   );
+}
+
+/** Only real (signed-in) sessions can sign out; the demo roster has nobody to sign out. */
+function OperatorSignOut(props: React.ComponentProps<typeof SignOutButton>) {
+  const { live } = useOperations();
+  return live ? <SignOutButton {...props} /> : null;
 }

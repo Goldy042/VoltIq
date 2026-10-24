@@ -14,7 +14,8 @@ import type { Db } from '@/lib/db/client';
 import { areaCorrections, areas, incidents, outageReports, savedPlaces, trustEvents, users } from '@/lib/db/schema';
 import { NSUKKA_BOUNDS, type IncidentStatus, type IssueType } from '@/data/nsukka';
 import { distanceMeters } from '@/lib/geo';
-import { resolveArea, type AreaCorrection } from '@/lib/address';
+import { describeLocation, resolveArea, type AreaCorrection } from '@/lib/address';
+import type { MyReport } from '@/lib/incidents';
 import type {
   AreaSuggestion,
   IncidentSummary,
@@ -401,7 +402,7 @@ export async function submitReport(
  * Recompute an outage from its reports: weight, reporters, centre and size,
  * and reward reporters once enough neighbours back them up.
  */
-async function refreshIncident(tx: Tx, incidentId: string, now: Date) {
+export async function refreshIncident(tx: Tx, incidentId: string, now: Date) {
   const [inc] = await tx.select().from(incidents).where(eq(incidents.id, incidentId));
   const rows = await tx
     .select()
@@ -481,7 +482,7 @@ export async function answerLightBack(db: Db, userId: string, reportId: string, 
       }
       // Enough neighbours agree: mark it restored so EEDC and the map know.
       if (inc.status !== 'restored' && inc.lightBackCount >= RESTORE_AT && inc.lightBackCount >= inc.reporterCount / 2) {
-        await tx.update(incidents).set({ status: 'restored', restoredAt: now, restoredBy: 'community' }).where(eq(incidents.id, inc.id));
+        await tx.update(incidents).set({ status: 'restored', restoredAt: now, restoredBy: 'community', etaAt: null }).where(eq(incidents.id, inc.id));
         await completeDispatches(tx, inc.id, now);
         return { status: 'restored' as const };
       }
@@ -554,3 +555,54 @@ export async function reviewReport(db: Db, staffId: string, reportId: string, de
   });
 }
 
+/* ------------------------------------------------------------------ */
+/* The resident's own reports                                          */
+/* ------------------------------------------------------------------ */
+
+export async function listMyReports(db: Db, userId: string, limit = 50): Promise<MyReport[]> {
+  const rows = await db
+    .select({ r: outageReports, incidentStatus: incidents.status })
+    .from(outageReports)
+    .leftJoin(incidents, eq(incidents.id, outageReports.incidentId))
+    .where(eq(outageReports.userId, userId))
+    .orderBy(desc(outageReports.createdAt))
+    .limit(limit);
+  return rows.map(({ r, incidentStatus }) => {
+    const status: MyReport['status'] = r.withdrawnAt
+      ? 'withdrawn'
+      : r.status === 'false_report'
+        ? 'not_accepted'
+        : ((incidentStatus as IncidentStatus | null) ?? 'reported');
+    return {
+      id: r.id,
+      ref: `VQ-${r.id.slice(0, 6).toUpperCase()}`,
+      issue: r.issueType,
+      place: r.landmark?.trim() || describeLocation({ lat: r.latitude, lng: r.longitude }).summary,
+      createdAt: r.createdAt.toISOString(),
+      note: r.description ?? undefined,
+      incidentId: r.incidentId,
+      status,
+      lightBack: Boolean(r.lightBackAt),
+      canWithdraw: OPEN_REPORT.includes(r.status as (typeof OPEN_REPORT)[number]) && !r.lightBackAt && status !== 'restored',
+    };
+  });
+}
+
+/**
+ * "I reported by mistake": the report stops counting towards its outage. It
+ * still counts towards rate limits, so withdrawing can't be used to resend.
+ */
+export async function withdrawReport(db: Db, userId: string, reportId: string, now = new Date()) {
+  return db.transaction(async (tx) => {
+    const [r] = await tx.select().from(outageReports).where(and(eq(outageReports.id, reportId), eq(outageReports.userId, userId)));
+    if (!r) throw new ReportError('not_found', 'That report isn’t yours or no longer exists.');
+    if (r.withdrawnAt) return { status: 'withdrawn' as const };
+    if (!OPEN_REPORT.includes(r.status as (typeof OPEN_REPORT)[number]) || r.lightBackAt) {
+      throw new ReportError('invalid', 'This report is already closed.');
+    }
+    await tx.update(outageReports).set({ status: 'false_report', weight: 0, withdrawnAt: now, updatedAt: now }).where(eq(outageReports.id, r.id));
+    // An outage left with no counted reports drops off the public map by itself.
+    if (r.incidentId) await refreshIncident(tx, r.incidentId, now);
+    return { status: 'withdrawn' as const };
+  });
+}

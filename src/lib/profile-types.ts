@@ -38,6 +38,8 @@ export interface AlertPrefs {
   forecasts: boolean;
   repairs: boolean;
   restored: boolean;
+  /** May we ask "do you have light?" when neighbours report an outage nearby. */
+  checks: boolean;
   quietHours: boolean;
 }
 
@@ -61,5 +63,6 @@ export const defaultAlerts: AlertPrefs = {
   forecasts: true,
   repairs: true,
   restored: true,
+  checks: true,
   quietHours: true,
 };

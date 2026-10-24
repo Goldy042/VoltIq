@@ -5,7 +5,7 @@
  * src/data/operations.ts), so the API can't do what the UI wouldn't allow.
  */
 
-import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '@/lib/db/client';
 import { areas, dispatches, distributionCompanies, incidents, outageReports, teams, users } from '@/lib/db/schema';
 import { can, type Permission, type ReportRow, type Staff, type StaffRole, type Team } from '@/data/operations';
@@ -61,6 +61,8 @@ export async function loadOrg(db: Conn, me: DbUser, now = new Date()): Promise<O
       phone: u.phone ?? '',
       teamId: u.teamId,
       onShift: u.onShift,
+      email: u.email,
+      invited: !u.clerkUserId,
     })),
     teams: teamRows.map((t) => {
       const mins = done.filter((d) => d.teamId === t.id).map((d) => Math.round((d.completedAt!.getTime() - d.assignedAt.getTime()) / 60_000));
@@ -111,7 +113,7 @@ export async function loadCrews(db: Conn, opts: { staff: boolean }): Promise<Cre
 }
 
 /** Every individual report, newest first, as reviewers see them. Phone numbers are masked. */
-export async function listReportLog(db: Db, now = new Date(), limit = 500): Promise<ReportRow[]> {
+export async function listReportLog(db: Conn, now = new Date(), limit = 500, incidentId?: string): Promise<ReportRow[]> {
   const rows = await db
     .select({
       r: outageReports,
@@ -124,6 +126,7 @@ export async function listReportLog(db: Db, now = new Date(), limit = 500): Prom
     .leftJoin(users, eq(users.id, outageReports.userId))
     .leftJoin(incidents, eq(incidents.id, outageReports.incidentId))
     .leftJoin(areas, eq(areas.id, outageReports.areaId))
+    .where(and(isNull(outageReports.withdrawnAt), incidentId ? eq(outageReports.incidentId, incidentId) : undefined))
     .orderBy(desc(outageReports.createdAt))
     .limit(limit);
 
@@ -157,7 +160,9 @@ export type OrgAction =
   | { action: 'moveToTeam'; staffId: string; teamId: string | null }
   | { action: 'toggleShift'; staffId: string }
   | { action: 'createTeam'; name: string; zone: string[] }
-  | { action: 'renameTeam'; teamId: string; name: string };
+  | { action: 'renameTeam'; teamId: string; name: string }
+  | { action: 'addStaff'; email: string; name: string; role: StaffRole; teamId: string | null }
+  | { action: 'removeStaff'; staffId: string };
 
 const ROLES: StaffRole[] = ['manager', 'dispatcher', 'team_lead', 'technician'];
 
@@ -238,6 +243,38 @@ export async function applyOrgAction(db: Db, actor: DbUser, a: OrgAction, now = 
         const name = a.name?.trim();
         if (!name) throw new ReportError('invalid', 'Give the team a name.', { field: 'name' });
         await tx.update(teams).set({ name }).where(eq(teams.id, a.teamId));
+        return;
+      }
+      case 'addStaff': {
+        require(actor, 'manage_roles');
+        const email = a.email?.trim().toLowerCase() ?? '';
+        const name = a.name?.trim() ?? '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new ReportError('invalid', 'Enter their work email, e.g. ada@enugudisco.com.', { field: 'email' });
+        if (!ROLES.includes(a.role)) throw new ReportError('invalid', 'Choose a role.', { field: 'role' });
+        if (a.teamId) await teamRow(tx, a.teamId);
+        const teamId = OFFICE_ROLES.includes(a.role) ? null : a.teamId;
+        const [existing] = await tx.select().from(users).where(eq(users.email, email));
+        if (existing && existing.role !== 'citizen') throw new ReportError('invalid', `${existing.name} is already on the staff list.`, { field: 'email' });
+        if (existing) {
+          // A resident account with this email becomes staff; their places and reports stay.
+          await tx.update(users).set({ role: a.role, teamId, updatedAt: now }).where(eq(users.id, existing.id));
+        } else {
+          if (name.length < 2) throw new ReportError('invalid', 'Enter their name.', { field: 'name' });
+          // Linked to their sign-in the first time they log in with this email (see getCurrentUser).
+          await tx.insert(users).values({ email, name: name.slice(0, 120), role: a.role, teamId, createdAt: now });
+        }
+        return;
+      }
+      case 'removeStaff': {
+        require(actor, 'manage_roles');
+        const person = await staffRow(tx, a.staffId);
+        if (person.role === 'manager') {
+          const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(users).where(eq(users.role, 'manager'));
+          if (n <= 1) throw new ReportError('invalid', 'The district needs at least one manager.');
+        }
+        await tx.update(teams).set({ leadUserId: null, leadAssignedById: null, leadAssignedAt: null }).where(eq(teams.leadUserId, person.id));
+        // They keep a resident account and lose console access straight away.
+        await tx.update(users).set({ role: 'citizen', teamId: null, onShift: false, updatedAt: now }).where(eq(users.id, person.id));
         return;
       }
       default:

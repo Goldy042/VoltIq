@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
-import { BellIcon, CheckCircle2Icon, ChevronRightIcon, MessageSquareIcon, SparklesIcon } from 'lucide-react';
+import { BellIcon, CheckCircle2Icon, ChevronRightIcon, HelpCircleIcon, MessageSquareIcon, SparklesIcon } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/components/ui/cn';
 import { useAlerts } from '@/hooks/useAlerts';
@@ -22,6 +22,7 @@ const alertIcon: Record<AlertKind, { icon: React.ElementType; color: string }> =
   prediction: { icon: SparklesIcon, color: 'var(--status-predicted)' },
   update: { icon: MessageSquareIcon, color: 'var(--ink)' },
   restored: { icon: CheckCircle2Icon, color: 'var(--status-restored)' },
+  check: { icon: HelpCircleIcon, color: 'var(--accent)' },
 };
 
 /** App header; `night` floats over dark heroes, `day` sits on the page. */
@@ -189,7 +190,7 @@ function AlertRow({ alert: a, fresh, onOpen }: { alert: AlertItem; fresh: boolea
     </>
   );
   return a.incidentId ? (
-    <Link href={`/map?focus=${a.incidentId}`} onClick={onOpen} className="flex gap-3 px-4 py-3 transition-colors hover:bg-sunken">
+    <Link href={`/outages/${a.incidentId}`} onClick={onOpen} className="flex gap-3 px-4 py-3 transition-colors hover:bg-sunken">
       {body}
     </Link>
   ) : (

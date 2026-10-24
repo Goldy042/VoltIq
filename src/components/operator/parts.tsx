@@ -149,13 +149,13 @@ export interface KpiItem {
 }
 
 /** One strip, many numbers, hairline dividers — reads as a single instrument. */
-export function KpiStrip({ items }: { items: KpiItem[] }) {
+export function KpiStrip({ items, wide = true }: { items: KpiItem[]; /** Six across on big screens; false keeps four. */ wide?: boolean }) {
   return (
     <motion.dl
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease }}
-      className="grid grid-cols-2 overflow-hidden rounded-md bg-surface shadow-card sm:grid-cols-3 xl:grid-cols-6"
+      className={cn('grid grid-cols-2 overflow-hidden rounded-md bg-surface shadow-card', wide ? 'sm:grid-cols-3 xl:grid-cols-6' : 'sm:grid-cols-4')}
     >
       {items.map((k, i) => (
         <div

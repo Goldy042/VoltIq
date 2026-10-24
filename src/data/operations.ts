@@ -71,6 +71,9 @@ export interface Staff {
   teamId: string | null;
   /** Set by a manager on the Teams or Staff page — nothing tracks this automatically. */
   onShift: boolean;
+  email?: string;
+  /** Added by a manager but hasn't signed in yet. */
+  invited?: boolean;
 }
 
 export const seedStaff: Staff[] = [

@@ -29,6 +29,12 @@ test('quiet hours hold back repair news but never light restored', () => {
 });
 
 test('copy says who restored it', () => {
-  assert.match(alertCopy('restored', 'Odim Gate', 'community').title, /Neighbours say/);
-  assert.match(alertCopy('restored', 'Odim Gate', 'eedc').body, /EEDC marked/);
+  assert.match(alertCopy('restored', 'Odim Gate', { restoredBy: 'community' }).title, /Neighbours say/);
+  assert.match(alertCopy('restored', 'Odim Gate', { restoredBy: 'eedc' }).body, /EEDC marked/);
+});
+
+test('updates carry the note and the expected time', () => {
+  const c = alertCopy('update', 'Odim Gate', { note: 'Replacing the fuse.', etaAt: new Date() });
+  assert.match(c.body, /Replacing the fuse\. EEDC expects light back by /);
+  assert.equal(wantsEvent(prefsOf({ repairs: false }), 'update'), false);
 });

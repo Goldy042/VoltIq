@@ -1,4 +1,5 @@
 import { capsuleRing, circleRing, convexHull, distanceMeters, offsetMeters, pointInRing, seeded, type Ring } from '@/lib/geo';
+import type { Cell, Scope } from '@/lib/footprint';
 
 /* ------------------------------------------------------------------ */
 /* Vocabulary                                                          */
@@ -234,8 +235,23 @@ export interface Incident {
   voltage?: number;
   note: string;
   crewId?: string;
-  /** Radius of the affected area in metres. */
+  /** Radius of the affected area in metres (rough; `cells` is the real shape when present). */
   radius: number;
+  /** ~100 m blocks: where people reported (`off`) and where neighbours said they have light (`on`). See src/lib/footprint.ts. */
+  cells?: { off: Cell[]; on: Cell[] };
+  /** How far it reaches, from the blocks. */
+  scope?: Scope;
+  /** Neighbours around it who said they have light. */
+  lightOn?: number;
+  /** Staff only: neighbours asked who haven't answered yet. */
+  asked?: number;
+  /** When EEDC expects light back (ISO). */
+  etaAt?: string;
+  /** Key of CAUSES in src/lib/incidents.ts. */
+  cause?: string;
+  /** EEDC's latest public update for residents, and when it was posted (ISO). */
+  publicNote?: string;
+  publicNoteAt?: string;
 }
 
 export const incidents: Incident[] = [

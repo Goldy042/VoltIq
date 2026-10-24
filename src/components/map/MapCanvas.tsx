@@ -23,8 +23,9 @@ import {
   type ReportDot,
 } from '@/data/nsukka';
 import { circleRing } from '@/lib/geo';
+import { cellRing, type Cell } from '@/lib/footprint';
 import { groupIncidents, type PinGroup } from './cluster';
-import { CrewPin, GroupPin, IncidentPin, PredictionPin, SubstationPin, UserDot } from './markers';
+import { CrewPin, GroupPin, IncidentPin, MiniPin, PredictionPin, SubstationPin, UserDot } from './markers';
 
 /** MapLibre paints can't read CSS variables, so the status scale is mirrored here. */
 const MAP_COLORS = {
@@ -63,6 +64,13 @@ export interface MapCanvasProps {
   crews?: Crew[];
   showSubstations?: boolean;
   selectedId?: string | null;
+  /** Lit up without selecting, e.g. while a list row is hovered. */
+  highlightId?: string | null;
+  /**
+   * Which outages get a full pin. The rest are small dots until you zoom in,
+   * so a busy night doesn't turn into a wall of pins. Omit for all full pins.
+   */
+  prominent?: (i: Incident) => boolean;
   onSelect?: (id: string | null) => void;
   flyTo?: FlyTarget | null;
   user?: { lat: number; lng: number } | null;
@@ -98,6 +106,8 @@ export function MapCanvas({
   crews = [],
   showSubstations = false,
   selectedId = null,
+  highlightId = null,
+  prominent,
   onSelect,
   flyTo,
   user,
@@ -180,25 +190,30 @@ export function MapCanvas({
 
   const selected = incidents.find((i) => i.id === selectedId);
 
-  // Shade the affected area of the selected incident only.
-  const areaGeojson = useMemo(
-    () => ({
+  // Shade the selected outage only: the blocks people reported from, and the
+  // blocks around it where neighbours said they have light. Outages without
+  // blocks (demo data) get their rough circle.
+  const areaGeojson = useMemo(() => {
+    if (!selected) return { type: 'FeatureCollection' as const, features: [] };
+    const color = selected.status === 'restored' ? MAP_COLORS.restored : MAP_COLORS[selected.issue];
+    const block = (c: Cell, lit: boolean) => ({
+      type: 'Feature' as const,
+      properties: { id: selected.id, color: lit ? MAP_COLORS.restored : color, lit: lit ? 1 : 0 },
+      geometry: { type: 'Polygon' as const, coordinates: [cellRing(c)] },
+    });
+    return {
       type: 'FeatureCollection' as const,
-      features: selected
-        ? [
+      features: selected.cells?.off.length
+        ? [...selected.cells.off.map((c) => block(c, false)), ...selected.cells.on.map((c) => block(c, true))]
+        : [
             {
               type: 'Feature' as const,
-              properties: {
-                id: selected.id,
-                color: selected.status === 'restored' ? MAP_COLORS.restored : MAP_COLORS[selected.issue],
-              },
+              properties: { id: selected.id, color, lit: 0 },
               geometry: { type: 'Polygon' as const, coordinates: [circleRing(selected.lat, selected.lng, selected.radius)] },
             },
-          ]
-        : [],
-    }),
-    [selected],
-  );
+          ],
+    };
+  }, [selected]);
 
   const predictionGeojson = useMemo(
     () => ({
@@ -298,8 +313,20 @@ export function MapCanvas({
         </Source>
 
         <Source id="incident-areas" type="geojson" data={areaGeojson}>
-          <Layer id="incident-areas" type="fill" paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': 0.14 }} />
-          <Layer id="incident-outline" type="line" paint={{ 'line-color': ['get', 'color'], 'line-opacity': 0.55, 'line-width': 1.5 }} />
+          <Layer
+            id="incident-areas"
+            type="fill"
+            paint={{ 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['==', ['get', 'lit'], 1], 0.16, 0.22] }}
+          />
+          <Layer
+            id="incident-outline"
+            type="line"
+            paint={{
+              'line-color': ['get', 'color'],
+              'line-opacity': ['case', ['==', ['get', 'lit'], 1], 0.35, 0.55],
+              'line-width': 1.25,
+            }}
+          />
         </Source>
 
         <Source id="user-accuracy" type="geojson" data={accuracyGeojson}>
@@ -367,12 +394,14 @@ export function MapCanvas({
                   cursor: 'pointer',
                 }}
               >
-                {single ? (
+                {single && prominent && !prominent(single) && single.id !== selectedId && single.id !== highlightId && zoom < ZOOM.names ? (
+                  <MiniPin incident={single} />
+                ) : single ? (
                   <IncidentPin
                     incident={single}
-                    selected={single.id === selectedId}
+                    selected={single.id === selectedId || single.id === highlightId}
                     bump={bumped}
-                    showName={zoom >= ZOOM.names || single.id === selectedId}
+                    showName={zoom >= ZOOM.names || single.id === selectedId || single.id === highlightId}
                   />
                 ) : (
                   <GroupPin members={g.members} bump={bumped} />

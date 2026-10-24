@@ -18,6 +18,7 @@ import {
 } from '@/data/nsukka';
 import { distanceMeters, formatAgo } from '@/lib/geo';
 import { useOperations } from '@/lib/operations';
+import { EedcUpdate, IncidentInfoForm } from './IncidentInfo';
 
 interface IncidentDetailProps {
   incident: Incident;
@@ -76,6 +77,8 @@ export function IncidentDetail({ incident, crews, view, onBack, affected, onAffe
       </dl>
 
       {incident.note && <p className="mt-5 rounded-md bg-canvas p-4 font-body text-sm leading-body text-ink-muted">{incident.note}</p>}
+
+      <EedcUpdate incident={incident} />
 
       {/* Progress tracker */}
       <section aria-label="Repair progress" className="mt-6">
@@ -142,7 +145,10 @@ export function IncidentDetail({ incident, crews, view, onBack, affected, onAffe
             </>
           )
         ) : (
-          <OperatorActions incident={incident} crews={crews} onStatus={onStatus} onDispatch={onDispatch} />
+          <>
+            <OperatorActions incident={incident} crews={crews} onStatus={onStatus} onDispatch={onDispatch} />
+            {incident.status !== 'restored' && <IncidentInfoForm incident={incident} />}
+          </>
         )}
       </div>
     </div>
@@ -193,7 +199,7 @@ function NeighbourStack({ count, seed }: { count: number; seed: string }) {
   );
 }
 
-function OperatorActions({
+export function OperatorActions({
   incident,
   crews,
   onStatus,
@@ -212,7 +218,7 @@ function OperatorActions({
   const [crewId, setCrewId] = useState<string | null>(available[0]?.crew.id ?? null);
 
   if (incident.status === 'restored') {
-    return <p className="font-body text-sm text-ink-muted">Closed. Residents were notified when light returned.</p>;
+    return <p className="font-body text-sm text-ink-muted">Closed. Residents who want restore alerts were told when light returned.</p>;
   }
 
   if (incident.status === 'crew_dispatched') {

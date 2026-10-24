@@ -1,8 +1,8 @@
-import { MapScreen } from '@/components/screens/MapScreen';
+﻿import { OperatorBoard } from '@/components/operator/OperatorBoard';
 
-export const metadata = { title: 'EEDC dispatch · VoltIq' };
+export const metadata = { title: 'Dispatch board · EEDC · VoltIq' };
 
 export default async function OperatorMapPage({ searchParams }: { searchParams: Promise<{ focus?: string }> }) {
   const { focus } = await searchParams;
-  return <MapScreen view="operator" initialFocus={focus} embedded />;
+  return <OperatorBoard initialFocus={focus} />;
 }

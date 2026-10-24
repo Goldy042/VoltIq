@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BellRingIcon, CheckCircle2Icon, MailIcon, MessageCircleIcon, MoonIcon, SmartphoneIcon, SparklesIcon, TruckIcon } from 'lucide-react';
+import { BellRingIcon, CheckCircle2Icon, HelpCircleIcon,MailIcon, MessageCircleIcon, MoonIcon, SmartphoneIcon, SparklesIcon, TruckIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/Switch';
 import { usePush, type PushState } from '@/hooks/usePush';
 import type { AlertPrefs } from '@/lib/profile';
@@ -107,6 +107,13 @@ export function AlertPrefsForm({ value, onChange }: AlertPrefsFormProps) {
             hint="The moment supply comes back at your places."
             checked={value.restored}
             onChange={set('restored')}
+          />
+          <Switch
+            icon={<HelpCircleIcon className="h-5 w-5" />}
+            label="Ask me to check my light"
+            hint="When neighbours report no light near your places, we may ask if yours is on. One tap, at most every 6 hours."
+            checked={value.checks}
+            onChange={set('checks')}
           />
           <Switch
             icon={<MoonIcon className="h-5 w-5" />}

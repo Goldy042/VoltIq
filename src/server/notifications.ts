@@ -5,14 +5,16 @@
  */
 
 import webpush from 'web-push';
-import { and, desc, eq, gte, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNull, ne, sql } from 'drizzle-orm';
 import type { Db } from '@/lib/db/client';
 import { incidents, notifications, outageReports, pushSubscriptions, savedPlaces, users } from '@/lib/db/schema';
 import { describeLocation } from '@/lib/address';
 import { distanceMeters } from '@/lib/geo';
+import { cellOf, distanceToCells } from '@/lib/footprint';
 import {
   ALERT_MARGIN_M,
   ALERT_REPEAT_MS,
+  UPDATE_REPEAT_MS,
   alertCopy,
   kindOf,
   prefsOf,
@@ -23,6 +25,7 @@ import {
 } from '@/lib/alerts';
 
 const TYPE: Record<AlertEvent, 'status_update' | 'resolved'> = {
+  update: 'status_update',
   confirmed: 'status_update',
   crew_dispatched: 'status_update',
   restored: 'resolved',
@@ -42,9 +45,9 @@ export async function notifyIncident(db: Db, incidentId: string, event: AlertEve
 
     const [reporters, nearby] = await Promise.all([
       db
-        .selectDistinct({ userId: outageReports.userId })
+        .select({ userId: outageReports.userId, lat: outageReports.latitude, lng: outageReports.longitude })
         .from(outageReports)
-        .where(and(eq(outageReports.incidentId, incidentId), eq(outageReports.flagged, false))),
+        .where(and(eq(outageReports.incidentId, incidentId), eq(outageReports.flagged, false), ne(outageReports.status, 'false_report'))),
       db
         .select({ userId: savedPlaces.userId, lat: savedPlaces.latitude, lng: savedPlaces.longitude })
         .from(savedPlaces)
@@ -57,7 +60,11 @@ export async function notifyIncident(db: Db, incidentId: string, event: AlertEve
     ]);
     const centre = { lat: inc.centerLat, lng: inc.centerLng };
     const ids = new Set(reporters.map((r) => r.userId));
-    for (const p of nearby) if (distanceMeters(centre, p) <= inc.radiusM + ALERT_MARGIN_M) ids.add(p.userId);
+    // Homes near the blocks people reported from, not everyone in a circle around the centre.
+    const cells = reporters.map((r) => cellOf(r));
+    const inside = (p: { lat: number; lng: number }) =>
+      cells.length ? distanceToCells(p, cells) <= ALERT_MARGIN_M : distanceMeters(centre, p) <= inc.radiusM + ALERT_MARGIN_M;
+    for (const p of nearby) if (inside(p)) ids.add(p.userId);
     if (!ids.size) return 0;
 
     // Skip anyone already told this news recently.
@@ -68,7 +75,7 @@ export async function notifyIncident(db: Db, incidentId: string, event: AlertEve
         and(
           eq(notifications.incidentId, incidentId),
           eq(notifications.type, TYPE[event]),
-          gte(notifications.sentAt, new Date(now.getTime() - ALERT_REPEAT_MS)),
+          gte(notifications.sentAt, new Date(now.getTime() - (event === 'update' ? UPDATE_REPEAT_MS : ALERT_REPEAT_MS))),
         ),
       );
     for (const t of told) ids.delete(t.userId);
@@ -78,13 +85,13 @@ export async function notifyIncident(db: Db, incidentId: string, event: AlertEve
     const wanting = people.map((p) => ({ id: p.id, prefs: prefsOf(p.prefs) })).filter((p) => wantsEvent(p.prefs, event));
     if (!wanting.length) return 0;
 
-    const { title, body } = alertCopy(event, describeLocation(centre).summary, inc.restoredBy);
+    const { title, body } = alertCopy(event, describeLocation(centre).summary, { restoredBy: inc.restoredBy, etaAt: inc.etaAt, note: inc.publicNote });
     await db.insert(notifications).values(
       wanting.map((p) => ({ userId: p.id, type: TYPE[event], incidentId, title, message: body, sentAt: now })),
     );
 
     const pushTo = wanting.filter((p) => shouldPush(p.prefs, event, now)).map((p) => p.id);
-    await sendPush(db, pushTo, { title, body, url: `/map?focus=${incidentId}`, tag: `incident-${incidentId}` });
+    await sendPush(db, pushTo, { title, body, url: `/outages/${incidentId}`, tag: `incident-${incidentId}` });
     return wanting.length;
   } catch (e) {
     console.error('notifyIncident failed', e);
@@ -112,6 +119,8 @@ export interface PushPayload {
   body: string;
   url: string;
   tag?: string;
+  /** "Do you have light?" — the service worker shows Yes / No buttons that answer with this token. */
+  check?: { id: string; token: string };
 }
 
 /** Push to every device these people registered; forget devices the browser has revoked. */

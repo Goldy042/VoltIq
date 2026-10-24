@@ -6,6 +6,7 @@ import { CheckIcon, TruckIcon, UsersIcon } from 'lucide-react';
 import { AnimatedCount } from '@/components/ui/AnimatedCount';
 import { cn } from '@/components/ui/cn';
 import { useOperations } from '@/lib/operations';
+import { EedcUpdate } from '@/components/map/IncidentInfo';
 import {
   CONFIRM_AT_REPORTS,
   crewStatusLabel,
@@ -38,7 +39,7 @@ export function RepairTracker({ incident, crew }: { incident: Incident; crew?: C
       : incident.status === 'confirmed'
         ? 'EEDC has confirmed the fault and is assigning a crew.'
         : incident.status === 'crew_dispatched'
-          ? `${crew?.name ?? 'A crew'} is ${crew?.status === 'on_site' ? 'working on it now' : `about ${crew?.etaMinutes ?? 6} min away`}.`
+          ? `${crew?.name ?? 'A repair team'} ${crew?.status === 'on_site' ? 'is working on it now' : 'has been sent'}.`
           : 'Light is back. Thanks for reporting.';
 
   return (
@@ -73,6 +74,8 @@ export function RepairTracker({ incident, crew }: { incident: Incident; crew?: C
           </li>
         ))}
       </ol>
+
+      <EedcUpdate incident={incident} />
 
       {incident.status === 'reported' && (
         <div className="mt-5 rounded-lg bg-canvas p-4">

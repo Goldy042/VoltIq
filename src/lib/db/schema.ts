@@ -81,10 +81,12 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "report_confirmed",
   "status_update",
   "resolved",
+  // "Do you have light?" asked of neighbours around an outage
+  "light_check",
 ]);
 
 /* ------------------------------------------------------------------ */
-/* USERS                                                              */
+/* USERS                                                            */
 /* ------------------------------------------------------------------ */
 
 export const users = pgTable("users", {
@@ -232,6 +234,11 @@ export const incidents = pgTable(
     restoredAt: timestamp("restored_at"),
     // "community" when enough residents said the light is back, "eedc" when staff closed it
     restoredBy: varchar("restored_by", { length: 16 }),
+    // What EEDC tells residents: expected fix time, cause (see CAUSES in src/lib/incidents.ts) and a public update
+    etaAt: timestamp("eta_at"),
+    cause: varchar("cause", { length: 32 }),
+    publicNote: text("public_note"),
+    publicNoteAt: timestamp("public_note_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({
@@ -274,6 +281,8 @@ export const outageReports = pgTable(
     lastConfirmedAt: timestamp("last_confirmed_at").defaultNow().notNull(),
     // The resident told us their light came back
     lightBackAt: timestamp("light_back_at"),
+    // The resident took the report back (status is set to false_report so it stops counting, without a trust penalty)
+    withdrawnAt: timestamp("withdrawn_at"),
     // Abuse checks: why the report looks off, and how much (0–100+). Flagged
     // reports are kept but carry no weight until EEDC reviews them.
     flags: text("flags").array().default([]).notNull(),
@@ -296,6 +305,43 @@ export const outageReports = pgTable(
     userCreatedIdx: index("outage_reports_user_created_idx").on(table.userId, table.createdAt),
     incidentIdx: index("outage_reports_incident_idx").on(table.incidentId),
     ipCreatedIdx: index("outage_reports_ip_created_idx").on(table.ipHash, table.createdAt),
+  })
+);
+
+/* ------------------------------------------------------------------ */
+/* LIGHT CHECKS ("do you have light?" answers from neighbours)        */
+/* ------------------------------------------------------------------ */
+
+// One per person per outage. Asked ones (asked_at set) come from a push or
+// inbox question; the rest were answered from a card in the app. "on" marks
+// the block as lit, which is how the outage's edge is found; "off" also adds
+// a report. See src/lib/checks.ts.
+export const lightChecks = pgTable(
+  "light_checks",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    incidentId: uuid("incident_id")
+      .references(() => incidents.id)
+      .notNull(),
+    userId: uuid("user_id")
+      .references(() => users.id, { onDelete: "cascade" })
+      .notNull(),
+    // The saved place we asked about
+    latitude: doublePrecision("latitude").notNull(),
+    longitude: doublePrecision("longitude").notNull(),
+    // "on" | "off"; null while unanswered
+    answer: varchar("answer", { length: 8 }),
+    // Lets a notification button answer without a session; never shown
+    token: varchar("token", { length: 48 }).notNull().unique(),
+    askedAt: timestamp("asked_at"),
+    answeredAt: timestamp("answered_at"),
+    // "push" | "app"
+    via: varchar("via", { length: 8 }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    onePerPerson: uniqueIndex("light_checks_incident_user_uq").on(table.incidentId, table.userId),
+    userAskedIdx: index("light_checks_user_asked_idx").on(table.userId, table.askedAt),
   })
 );
 

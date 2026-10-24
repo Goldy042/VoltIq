@@ -57,7 +57,33 @@ export interface OutageFeed {
   addReport: (incidentId: string, name: string, at?: { lat: number; lng: number }) => Promise<SubmitResult | null>;
   setStatus: (incidentId: string, status: IncidentStatus) => Promise<boolean>;
   dispatchCrew: (incidentId: string, crewId: string) => Promise<boolean>;
+  /** Expected fix time, cause and public update for residents. Throws ApiFailure so forms can show field errors. */
+  updateInfo: (incidentId: string, info: IncidentInfo) => Promise<void>;
   refresh: () => void;
+}
+
+export interface IncidentInfo {
+  etaAt?: string | null;
+  cause?: string | null;
+  publicNote?: string;
+}
+
+/**
+ * "I have this too": a real report of the same problem, from `at` (your place,
+ * when it's inside the outage) or the outage itself. The server decides if it's
+ * new, a repeat, or too soon.
+ */
+export function joinOutage(target: Incident, at?: { lat: number; lng: number }) {
+  const point = at ?? { lat: target.lat, lng: target.lng };
+  return api<SubmitResult>('/api/reports', {
+    body: {
+      issue: target.issue,
+      lat: point.lat,
+      lng: point.lng,
+      areaSlug: target.areaId || undefined,
+      startedAt: new Date(Date.now() - target.minutesAgo * 60_000).toISOString(),
+    },
+  });
 }
 
 export function useOutageFeed({ source = 'live', onEvent, enabled = true }: Options = {}): OutageFeed {
@@ -192,17 +218,8 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
     async (incidentId, _name, at) => {
       const target = incidentsRef.current.find((i) => i.id === incidentId);
       if (!target) return null;
-      const point = at ?? { lat: target.lat, lng: target.lng };
       try {
-        const result = await api<SubmitResult>('/api/reports', {
-          body: {
-            issue: target.issue,
-            lat: point.lat,
-            lng: point.lng,
-            areaSlug: target.areaId || undefined,
-            startedAt: new Date(Date.now() - target.minutesAgo * 60_000).toISOString(),
-          },
-        });
+        const result = await joinOutage(target, at);
         void load();
         return result;
       } catch (e) {
@@ -252,6 +269,19 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
     [assign, load, toast],
   );
 
+  const updateInfo = useCallback<OutageFeed['updateInfo']>(
+    async (incidentId, info) => {
+      await api(`/api/operator/incidents/${incidentId}/update`, { body: info });
+      patchIncident(incidentId, {
+        ...(info.etaAt !== undefined && { etaAt: info.etaAt ?? undefined }),
+        ...(info.cause !== undefined && { cause: info.cause ?? undefined }),
+        ...(info.publicNote !== undefined && { publicNote: info.publicNote.trim() || undefined, publicNoteAt: new Date().toISOString() }),
+      });
+      void load();
+    },
+    [load],
+  );
+
   return {
     source: 'live',
     incidents,
@@ -263,6 +293,7 @@ function useLiveFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
     addReport,
     setStatus,
     dispatchCrew,
+    updateInfo,
     refresh: () => void load(),
   };
 }
@@ -344,6 +375,21 @@ function useDemoFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
     [assign],
   );
 
+  const updateInfo = useCallback<OutageFeed['updateInfo']>(async (incidentId, info) => {
+    setIncidents((prev) =>
+      prev.map((i) =>
+        i.id !== incidentId
+          ? i
+          : {
+              ...i,
+              ...(info.etaAt !== undefined && { etaAt: info.etaAt ?? undefined }),
+              ...(info.cause !== undefined && { cause: info.cause ?? undefined }),
+              ...(info.publicNote !== undefined && { publicNote: info.publicNote.trim() || undefined, publicNoteAt: new Date().toISOString() }),
+            },
+      ),
+    );
+  }, []);
+
   return {
     source: 'demo',
     incidents,
@@ -355,6 +401,7 @@ function useDemoFeed({ onEvent, enabled }: { onEvent?: (e: FeedEvent) => void; e
     addReport,
     setStatus,
     dispatchCrew,
+    updateInfo,
     refresh: () => {},
   };
 }

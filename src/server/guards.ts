@@ -11,12 +11,12 @@ export async function requireResident() {
   return user;
 }
 
-/** Onboarding: signed in; already-onboarded residents go home. */
-export async function requireOnboarding() {
+/** Onboarding: signed in; already-onboarded residents go home unless they asked to run it again. */
+export async function requireOnboarding(again = false) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
   if (canUseOperator(user)) redirect('/operator');
-  if (user.onboardedAt) redirect('/dashboard');
+  if (user.onboardedAt && !again) redirect('/dashboard');
   return user;
 }
 

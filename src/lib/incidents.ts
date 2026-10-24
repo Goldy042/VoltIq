@@ -5,6 +5,7 @@
  */
 
 import type { Crew, Incident, IncidentStatus, IssueType, ReportDot } from '@/data/nsukka';
+import type { ReportRow } from '@/data/operations';
 
 export interface LiveFeed {
   incidents: Incident[];
@@ -90,4 +91,103 @@ export function describeIncident(issue: IssueType, reporters: number) {
   const who = reporters === 1 ? 'One resident' : `${reporters} residents`;
   const what = issue === 'no_power' ? 'no light' : issue === 'low_voltage' ? 'low voltage' : 'light going off and on';
   return `${who} reported ${what} here.`;
+}
+
+/** Causes EEDC can give residents. Plain words, no engineering jargon. */
+export const CAUSES = {
+  checking: 'Still finding the cause',
+  transformer: 'Transformer fault',
+  line: 'Fallen or broken line',
+  feeder: 'Feeder tripped at the substation',
+  load_shedding: 'Not enough supply (load shedding)',
+  maintenance: 'Planned maintenance',
+  weather: 'Storm or rain damage',
+  vandalism: 'Vandalism or theft',
+} as const;
+export type Cause = keyof typeof CAUSES;
+export const isCause = (x: unknown): x is Cause => typeof x === 'string' && x in CAUSES;
+
+/** Longest a public update can be. */
+export const PUBLIC_NOTE_MAX = 280;
+/** Expected-fix times further out than this are almost certainly typos. */
+export const MAX_ETA_HOURS = 72;
+
+/** "by 6:30 PM" today, "by Sat 9:00 AM" otherwise, in Nsukka time. */
+export function formatEta(etaIso: string, now = new Date()) {
+  const eta = new Date(etaIso);
+  const opts: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', timeZone: 'Africa/Lagos' };
+  const day = (d: Date) => d.toLocaleDateString('en-NG', { timeZone: 'Africa/Lagos' });
+  const time = eta.toLocaleTimeString('en-NG', opts);
+  if (day(eta) === day(now)) return `by ${time}`;
+  return `by ${eta.toLocaleDateString('en-NG', { weekday: 'short', timeZone: 'Africa/Lagos' })} ${time}`;
+}
+
+/** What residents see for their own reports. */
+export interface MyReport {
+  id: string;
+  /** Short reference, e.g. VQ-3F2A9C. */
+  ref: string;
+  issue: IssueType;
+  place: string;
+  createdAt: string;
+  note?: string;
+  incidentId: string | null;
+  /** The outage's progress, or what happened to the report itself. */
+  status: IncidentStatus | 'withdrawn' | 'not_accepted';
+  lightBack: boolean;
+  /** Only open reports can be taken back. */
+  canWithdraw: boolean;
+}
+
+export interface OutageEvent {
+  at: string;
+  kind: 'first_report' | 'confirmed' | 'team' | 'team_done' | 'update' | 'restored';
+  text: string;
+  /** Staff only: who did it. */
+  by?: string;
+}
+
+/** One outage's own page (/outages/[id], /operator/outages/[id]). */
+export interface OutageDetail {
+  incident: Incident;
+  startedAt: string;
+  confirmedAt?: string;
+  restoredAt?: string;
+  restoredBy?: string;
+  /** Residents who said their light is back. */
+  lightBack: number;
+  timeline: OutageEvent[];
+  reportsOverTime: ReportBuckets;
+  dots: ReportDot[];
+  crew?: Crew;
+  /** Staff only. */
+  teams?: Crew[];
+  reports?: ReportRow[];
+  serverTime: string;
+}
+
+export interface ReportBuckets {
+  /** Reports per bucket, oldest first. */
+  counts: number[];
+  /** Bucket length in minutes. */
+  minutes: number;
+}
+
+/** Most bars in the "reports over time" chart. */
+export const MAX_BUCKETS = 24;
+
+/**
+ * Reports per time bucket from `start` to `end`: 15-minute bars for short
+ * outages, growing so the chart never has more than MAX_BUCKETS bars.
+ */
+export function bucketReports(times: Date[], start: Date, end: Date): ReportBuckets {
+  const span = Math.max(1, (end.getTime() - start.getTime()) / 60_000);
+  const steps = [15, 30, 60, 120, 240, 480, 1440];
+  const minutes = steps.find((m) => span / m <= MAX_BUCKETS) ?? Math.ceil(span / MAX_BUCKETS);
+  const counts = new Array<number>(Math.max(1, Math.ceil(span / minutes))).fill(0);
+  for (const t of times) {
+    const i = Math.floor((t.getTime() - start.getTime()) / 60_000 / minutes);
+    counts[Math.min(counts.length - 1, Math.max(0, i))]++;
+  }
+  return { counts, minutes };
 }

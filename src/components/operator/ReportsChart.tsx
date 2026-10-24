@@ -8,16 +8,27 @@ interface Bar {
 }
 
 /**
- * Reports received per hour, last 24 hours. Single series, so no legend —
+ * Reports received per time bucket (per hour over the last day by default). Single series, so no legend —
  * the card title names it. Hover or focus a bar for its exact value.
  */
-export function ReportsChart({ data }: { data: Bar[] }) {
+export function ReportsChart({
+  data,
+  startLabel = `${data[0]?.hour} yesterday`,
+  endLabel = 'Now',
+  height = 160,
+}: {
+  data: Bar[];
+  startLabel?: string;
+  endLabel?: string;
+  height?: number;
+}) {
   const [hover, setHover] = useState<number | null>(null);
   const max = Math.max(...data.map((d) => d.reports));
-  const ceiling = Math.ceil(max / 10) * 10;
+  // Small counts still get a sensible scale (and never divide by zero).
+  const ceiling = max <= 5 ? 5 : Math.ceil(max / 10) * 10;
   const ticks = [0, ceiling / 2, ceiling];
   const peak = data.reduce((b, d, i) => (d.reports > data[b].reports ? i : b), 0);
-  const H = 160;
+  const H = height;
 
   return (
     <div>
@@ -68,9 +79,9 @@ export function ReportsChart({ data }: { data: Bar[] }) {
             })}
           </div>
           <div className="mt-1.5 flex justify-between font-body text-2xs text-ink-faint">
-            <span>{data[0].hour} yesterday</span>
+            <span>{startLabel}</span>
             <span className="hidden sm:inline">Peak {data[peak].reports} at {data[peak].hour}</span>
-            <span>Now</span>
+            <span>{endLabel}</span>
           </div>
         </div>
       </div>

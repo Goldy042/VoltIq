@@ -28,6 +28,7 @@ import { api, ApiFailure, waitText } from '@/lib/api';
 import { distanceMeters, formatAgo } from '@/lib/geo';
 import { locateBest, type Fix } from '@/lib/locate';
 import { placeName, useProfile } from '@/lib/profile';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 import type { ReportContext, ReportInput, SubmitResult } from '@/lib/reporting';
 
 type Step = 0 | 1 | 2 | 3;
@@ -48,6 +49,7 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
   const [issue, setIssue] = useState<IssueType | null>(initialIssue ?? null);
   const [issueError, setIssueError] = useState<string>();
   const { primary, profile } = useProfile();
+  const desktop = useMediaQuery('(min-width: 1024px)');
   const [pos, setPos] = useState({ lat: primary.lat, lng: primary.lng });
   const [recenter, setRecenter] = useState(0);
   const [locating, setLocating] = useState(false);
@@ -204,6 +206,339 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
     return <Success result={result} issue={issue} />;
   }
 
+  /* ---- Sections, shared by the phone wizard and the desktop form ---- */
+
+  const issueSection = (
+    <OptionCards<IssueType>
+      label="Choose one"
+      hint="Pick what you see at home right now. You can add more details later."
+      value={issue}
+      error={issueError}
+      onChange={(v) => {
+        setIssue(v);
+        setIssueError(undefined);
+      }}
+      options={(['no_power', 'low_voltage', 'fluctuating'] as IssueType[]).map((v) => ({
+        value: v,
+        label: issueMeta[v].label,
+        description: issueMeta[v].description,
+        color: issueMeta[v].color,
+        icon: <IssueIcon issue={v} className="h-5 w-5" />,
+      }))}
+    />
+  );
+
+  // You already reported here: answer instead of reporting again.
+  const mineBox = mine && (
+    <div className="rounded-lg border border-line-strong bg-canvas p-4">
+      <p className="font-body text-sm font-semibold text-ink">
+        You reported {issueMeta[mine.issue].label.toLowerCase()} near here {formatAgo(minutesSince(mine.lastConfirmedAt))}.
+      </p>
+      <p className="mt-0.5 font-body text-xs text-ink-muted">Is it still off? Answering updates that report instead of sending a new one.</p>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <Button size="sm" onClick={() => answerMine(false)} loading={sending}>
+          Still off
+        </Button>
+        <Button size="sm" variant="secondary" onClick={() => answerMine(true)} leading={<SunIcon className="h-4 w-4" aria-hidden="true" />}>
+          Light is back
+        </Button>
+      </div>
+    </div>
+  );
+
+  const savedPlaces = profile.places.length > 0 && (
+    <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5 lg:mx-0 lg:flex-wrap lg:px-0">
+      {profile.places.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          onClick={() => moveTo(p)}
+          className={cn(
+            'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium',
+            distanceMeters(p, pos) < 30 ? 'bg-ink text-canvas' : 'border border-line-strong bg-surface text-ink hover:border-ink',
+          )}
+        >
+          <MapPinIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          {placeName(p)}
+        </button>
+      ))}
+    </div>
+  );
+
+  const search = (
+    <div className="relative">
+      <label className="sr-only" htmlFor="report-search">
+        Search a landmark or area
+      </label>
+      <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
+      <input
+        id="report-search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search a landmark, e.g. Odim Gate"
+        autoComplete="off"
+        className="h-11 w-full rounded-full border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink shadow-card placeholder:text-ink-faint focus:border-ink focus:outline-none"
+      />
+      {query && results.length > 0 && (
+        <ul className="absolute inset-x-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-lg bg-surface py-1 shadow-float">
+          {results.map((r) => (
+            <li key={`${r.type}-${r.id}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  moveTo(r);
+                  setQuery('');
+                }}
+                className="flex w-full flex-col px-4 py-2.5 text-left hover:bg-canvas"
+              >
+                <span className="font-body text-sm font-semibold text-ink">{r.name}</span>
+                <span className="font-body text-xs text-ink-muted">{r.detail}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  const locateButton = (
+    <Button
+      size="sm"
+      variant="secondary"
+      className="shadow-float"
+      loading={locating}
+      onClick={() => findMe()}
+      leading={<LocateFixedIcon className="h-4 w-4" aria-hidden="true" />}
+    >
+      Use my location
+    </Button>
+  );
+
+  const gpsBadge = device && (
+    <span className="pointer-events-none rounded-full bg-surface px-3 py-1 font-body text-xs text-ink-muted shadow-card">GPS ±{Math.round(device.accuracy)} m</span>
+  );
+
+  // Area: our guess, or a quick choice when we're not sure.
+  const areaPicker = ctx && area && (
+    <div>
+      <p className="font-body text-sm font-medium text-ink">{ctx.confident || chosenArea ? 'Area' : 'Which area is this?'}</p>
+      {!ctx.confident && !chosenArea && (
+        <p className="mt-0.5 font-body text-xs text-status-low">This spot is near a boundary or your GPS is rough. Pick the area you’re in.</p>
+      )}
+      <div role="radiogroup" className="mt-2 flex flex-wrap gap-1.5">
+        {ctx.areas.map((a) => {
+          const active = a.slug === area.slug;
+          return (
+            <button
+              key={a.slug}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => setChosenArea(a.slug)}
+              className={cn(
+                'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium transition-colors',
+                active ? 'bg-ink text-canvas' : 'border border-line-strong bg-surface text-ink hover:border-ink',
+              )}
+            >
+              {active && <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+              {a.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  const nearbyBox = ctx && ctx.nearby.length > 0 && (
+    <div className="rounded-md bg-canvas p-3">
+      <p className="flex items-center gap-1.5 font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        <UsersIcon className="h-3.5 w-3.5" aria-hidden="true" /> Already reported nearby
+      </p>
+      <ul className="mt-2 space-y-2">
+        {ctx.nearby.slice(0, 3).map((i) => (
+          <li key={i.id} className="flex items-center gap-2.5">
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: issueMeta[i.issue].color }}>
+              <IssueIcon issue={i.issue} className="h-3.5 w-3.5" />
+            </span>
+            <p className="min-w-0 flex-1 font-body text-sm text-ink">
+              {issueMeta[i.issue].label} · {i.areaName}
+              <span className="block font-body text-xs text-ink-muted">
+                {i.reporterCount} {i.reporterCount === 1 ? 'neighbour' : 'neighbours'} · {statusMeta[i.status].label}
+                {i.id === joining?.id && ' · your report joins this'}
+              </span>
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
+  const landmarkField = (
+    <TextField
+      label="Landmark or street"
+      hint="Helps the crew find the exact pole or transformer."
+      placeholder="e.g. Opposite the pharmacy on Odim Street"
+      value={landmark}
+      onChange={(e) => setLandmark(e.target.value)}
+      optional
+    />
+  );
+
+  const detailsSection = (
+    <div className="space-y-6">
+      <TextField
+        label="When did it start?"
+        hint="Roughly is fine — your best guess helps the forecast."
+        type="datetime-local"
+        value={startedAt}
+        max={maxTime}
+        onChange={(e) => setStartedAt(e.target.value)}
+      />
+      {issue !== 'no_power' && (
+        <TextField
+          label="Voltage reading"
+          hint="From your stabiliser or meter display, if you have one. Normal is about 230 V."
+          placeholder="e.g. 150"
+          inputMode="numeric"
+          value={voltage}
+          error={voltageError}
+          onChange={(e) => {
+            setVoltage(e.target.value.replace(/[^\d]/g, ''));
+            setVoltageError(undefined);
+          }}
+          trailing={<span className="pr-3 font-body text-sm text-ink-faint">volts</span>}
+          optional
+        />
+      )}
+      <TextArea
+        label="What did you notice?"
+        hint="A bang, sparks, a fallen wire — anything that helps EEDC find the fault."
+        placeholder="e.g. Heard a loud bang from the transformer, then everything went off"
+        value={note}
+        maxLength={500}
+        onChange={(e) => setNote(e.target.value)}
+        optional
+      />
+      <div>
+        <p className="flex items-baseline justify-between font-body text-sm font-medium text-ink">
+          Photo <span className="font-normal text-ink-faint">Coming soon</span>
+        </p>
+        <label className="mt-2 flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-line-strong p-4 transition-colors hover:border-ink">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-sunken">
+            <CameraIcon className="h-5 w-5 text-ink-muted" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1 truncate font-body text-sm text-ink">{photo ?? 'Add a photo of the pole, wire or meter'}</span>
+          <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? null)} />
+        </label>
+        <p className="mt-2 font-body text-xs text-ink-faint">Photos aren’t uploaded yet. Never stand under a fallen or sparking wire to take one.</p>
+      </div>
+    </div>
+  );
+
+  const errorBox = (
+    <AnimatePresence>
+      {sendError && (
+        <motion.p
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          role="alert"
+          className="flex items-start gap-2 rounded-md bg-canvas p-3 font-body text-sm text-ink"
+        >
+          <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-status-low" aria-hidden="true" />
+          {sendError}
+        </motion.p>
+      )}
+    </AnimatePresence>
+  );
+
+  /* ---- Desktop: map on the left, the whole form on the right ---- */
+  if (desktop) {
+    const sendNow = () => {
+      if (!issue) {
+        setIssueError('Choose the option closest to what you see.');
+        document.getElementById('report-what')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      void send();
+    };
+    return (
+      <div className="flex h-dvh bg-surface">
+        <div className="relative min-w-0 flex-1 bg-sunken">
+          <LocationPicker value={pos} onChange={setPos} recenterKey={recenter} color={color} />
+          <div className="absolute left-5 right-5 top-5 z-20 flex items-start gap-3">
+            <Link href="/dashboard" aria-label="Cancel report" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface text-ink shadow-float hover:bg-canvas">
+              <XIcon className="h-5 w-5" aria-hidden="true" />
+            </Link>
+            <div className="w-full max-w-sm">{search}</div>
+            <div className="ml-auto">{locateButton}</div>
+          </div>
+          <div className="absolute bottom-5 left-5 z-20 flex max-w-sm flex-col items-start gap-2">
+            {gpsBadge}
+            {/* "Is it this one?" — the outage your pin is in */}
+            <AnimatePresence>
+              {joining && issue && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 10 }}
+                  className="w-full rounded-lg bg-surface p-4 shadow-float"
+                >
+                  <p className="font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">Is it this one?</p>
+                  <p className="mt-1 font-body text-sm text-ink">
+                    <span className="font-semibold">{joining.reporterCount} {joining.reporterCount === 1 ? 'neighbour' : 'neighbours'}</span> already reported{' '}
+                    {issueMeta[joining.issue].label.toLowerCase()} in {joining.areaName} · {statusMeta[joining.status].label}
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Button size="sm" onClick={sendNow} loading={sending}>
+                      Yes, add me
+                    </Button>
+                    <ButtonLink href={`/outages/${joining.id}`} size="sm" variant="ghost">
+                      See it
+                    </ButtonLink>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        <div className="flex w-[480px] shrink-0 flex-col border-l border-line xl:w-[520px]">
+          <div className="min-h-0 flex-1 overflow-y-auto px-8 pb-8 pt-8">
+            <p className="font-body text-sm text-ink-muted">Report a problem</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-ink">Tell EEDC what’s wrong</h1>
+            <p className="mt-2 font-body text-sm text-ink-muted">Move the map so the pin sits on your house or street. Only the first part is required.</p>
+
+            <FormSection n={1} id="report-what" title={stepTitles[0]}>
+              {issueSection}
+            </FormSection>
+
+            <FormSection n={2} title={stepTitles[1]}>
+              <div className="space-y-4">
+                {mineBox}
+                {savedPlaces}
+                {areaPicker}
+                {nearbyBox}
+                {landmarkField}
+              </div>
+            </FormSection>
+
+            <FormSection n={3} title={stepTitles[2]} note="All optional">
+              {detailsSection}
+            </FormSection>
+          </div>
+          <div className="space-y-2 border-t border-line px-8 py-4">
+            {errorBox}
+            <Button full size="lg" loading={sending} onClick={sendNow}>
+              {sending ? 'Sending report…' : joining && issue ? 'Add my report' : 'Send report'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ---- Phones: one step at a time ---- */
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
       {/* Header + progress */}
@@ -223,9 +558,7 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
               <XIcon className="h-5 w-5" aria-hidden="true" />
             </Link>
           )}
-          <p className="flex-1 text-center font-body text-sm font-medium text-ink-muted">
-            Step {step + 1} of 3
-          </p>
+          <p className="flex-1 text-center font-body text-sm font-medium text-ink-muted">Step {step + 1} of 3</p>
           <span className="w-10" />
         </div>
         <div className="mx-auto flex max-w-xl gap-1.5 px-5 pb-3" aria-hidden="true">
@@ -254,246 +587,29 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
           >
             <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-ink">{stepTitles[step]}</h1>
 
-            {step === 0 && (
-              <div className="mt-6">
-                <OptionCards<IssueType>
-                  label="Choose one"
-                  hint="Pick what you see at home right now. You can add more details later."
-                  value={issue}
-                  error={issueError}
-                  onChange={(v) => {
-                    setIssue(v);
-                    setIssueError(undefined);
-                  }}
-                  options={(['no_power', 'low_voltage', 'fluctuating'] as IssueType[]).map((v) => ({
-                    value: v,
-                    label: issueMeta[v].label,
-                    description: issueMeta[v].description,
-                    color: issueMeta[v].color,
-                    icon: <IssueIcon issue={v} className="h-5 w-5" />,
-                  }))}
-                />
-              </div>
-            )}
+            {step === 0 && <div className="mt-6">{issueSection}</div>}
 
             {step === 1 && (
               <div className="mt-2 space-y-4">
-                {/* You already reported here: answer instead of reporting again */}
-                {mine && (
-                  <div className="rounded-lg border border-line-strong bg-canvas p-4">
-                    <p className="font-body text-sm font-semibold text-ink">
-                      You reported {issueMeta[mine.issue].label.toLowerCase()} near here {formatAgo(minutesSince(mine.lastConfirmedAt))}.
-                    </p>
-                    <p className="mt-0.5 font-body text-xs text-ink-muted">Is it still off? Answering updates that report instead of sending a new one.</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <Button size="sm" onClick={() => answerMine(false)} loading={sending}>
-                        Still off
-                      </Button>
-                      <Button size="sm" variant="secondary" onClick={() => answerMine(true)} leading={<SunIcon className="h-4 w-4" aria-hidden="true" />}>
-                        Light is back
-                      </Button>
-                    </div>
-                  </div>
-                )}
-
+                {mineBox}
                 <p className="font-body text-sm text-ink-muted">Move the map so the pin sits on your house or street.</p>
-
-                {/* Shortcuts: saved places and landmark search */}
-                {profile.places.length > 0 && (
-                  <div className="no-scrollbar -mx-5 flex gap-1.5 overflow-x-auto px-5">
-                    {profile.places.map((p) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => moveTo(p)}
-                        className={cn(
-                          'inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium',
-                          distanceMeters(p, pos) < 30 ? 'bg-ink text-canvas' : 'border border-line-strong bg-surface text-ink hover:border-ink',
-                        )}
-                      >
-                        <MapPinIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                        {placeName(p)}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="relative">
-                  <label className="sr-only" htmlFor="report-search">
-                    Search a landmark or area
-                  </label>
-                  <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint" aria-hidden="true" />
-                  <input
-                    id="report-search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search a landmark, e.g. Odim Gate"
-                    autoComplete="off"
-                    className="h-11 w-full rounded-full border border-line bg-surface pl-10 pr-4 font-body text-sm text-ink placeholder:text-ink-faint focus:border-ink focus:outline-none"
-                  />
-                  {query && results.length > 0 && (
-                    <ul className="absolute inset-x-0 top-[calc(100%+6px)] z-30 overflow-hidden rounded-lg bg-surface py-1 shadow-float">
-                      {results.map((r) => (
-                        <li key={`${r.type}-${r.id}`}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              moveTo(r);
-                              setQuery('');
-                            }}
-                            className="flex w-full flex-col px-4 py-2.5 text-left hover:bg-canvas"
-                          >
-                            <span className="font-body text-sm font-semibold text-ink">{r.name}</span>
-                            <span className="font-body text-xs text-ink-muted">{r.detail}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
+                {savedPlaces}
+                {search}
                 <div className="relative h-[42vh] min-h-[260px] overflow-hidden rounded-lg bg-sunken">
                   <LocationPicker value={pos} onChange={setPos} recenterKey={recenter} color={color} />
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="absolute right-3 top-3 shadow-float"
-                    loading={locating}
-                    onClick={() => findMe()}
-                    leading={<LocateFixedIcon className="h-4 w-4" aria-hidden="true" />}
-                  >
-                    Use my location
-                  </Button>
-                  {device && (
-                    <span className="pointer-events-none absolute bottom-3 left-3 rounded-full bg-surface px-3 py-1 font-body text-xs text-ink-muted shadow-card">
-                      GPS ±{Math.round(device.accuracy)} m
-                    </span>
-                  )}
+                  <div className="absolute right-3 top-3">{locateButton}</div>
+                  {gpsBadge && <div className="absolute bottom-3 left-3">{gpsBadge}</div>}
                 </div>
-
-                {/* Area: our guess, or a quick choice when we're not sure */}
-                {ctx && area && (
-                  <div>
-                    <p className="font-body text-sm font-medium text-ink">{ctx.confident || chosenArea ? 'Area' : 'Which area is this?'}</p>
-                    {!ctx.confident && !chosenArea && (
-                      <p className="mt-0.5 font-body text-xs text-status-low">This spot is near a boundary or your GPS is rough. Pick the area you’re in.</p>
-                    )}
-                    <div role="radiogroup" className="mt-2 flex flex-wrap gap-1.5">
-                      {ctx.areas.map((a) => {
-                        const active = a.slug === area.slug;
-                        return (
-                          <button
-                            key={a.slug}
-                            type="button"
-                            role="radio"
-                            aria-checked={active}
-                            onClick={() => setChosenArea(a.slug)}
-                            className={cn(
-                              'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 font-body text-sm font-medium transition-colors',
-                              active ? 'bg-ink text-canvas' : 'border border-line-strong bg-surface text-ink hover:border-ink',
-                            )}
-                          >
-                            {active && <CheckIcon className="h-3.5 w-3.5" aria-hidden="true" />}
-                            {a.name}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Outages already reported nearby */}
-                {ctx && ctx.nearby.length > 0 && (
-                  <div className="rounded-md bg-canvas p-3">
-                    <p className="flex items-center gap-1.5 font-body text-xs font-semibold uppercase tracking-wide text-ink-faint">
-                      <UsersIcon className="h-3.5 w-3.5" aria-hidden="true" /> Already reported nearby
-                    </p>
-                    <ul className="mt-2 space-y-2">
-                      {ctx.nearby.slice(0, 3).map((i) => (
-                        <li key={i.id} className="flex items-center gap-2.5">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white" style={{ backgroundColor: issueMeta[i.issue].color }}>
-                            <IssueIcon issue={i.issue} className="h-3.5 w-3.5" />
-                          </span>
-                          <p className="min-w-0 flex-1 font-body text-sm text-ink">
-                            {issueMeta[i.issue].label} · {i.areaName}
-                            <span className="block font-body text-xs text-ink-muted">
-                              {i.reporterCount} {i.reporterCount === 1 ? 'neighbour' : 'neighbours'} · {statusMeta[i.status].label}
-                              {i.id === joining?.id && ' · your report joins this'}
-                            </span>
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                <TextField
-                  label="Landmark or street"
-                  hint="Helps the crew find the exact pole or transformer."
-                  placeholder="e.g. Opposite the pharmacy on Odim Street"
-                  value={landmark}
-                  onChange={(e) => setLandmark(e.target.value)}
-                  optional
-                />
+                {areaPicker}
+                {nearbyBox}
+                {landmarkField}
               </div>
             )}
 
             {step === 2 && (
-              <div className="mt-6 space-y-6">
-                <p className="-mt-3 font-body text-sm text-ink-muted">All optional — send now if you’re in a hurry.</p>
-                <TextField
-                  label="When did it start?"
-                  hint="Roughly is fine — your best guess helps the forecast."
-                  type="datetime-local"
-                  value={startedAt}
-                  max={maxTime}
-                  onChange={(e) => setStartedAt(e.target.value)}
-                />
-                {issue !== 'no_power' && (
-                  <TextField
-                    label="Voltage reading"
-                    hint="From your stabiliser or meter display, if you have one. Normal is about 230 V."
-                    placeholder="e.g. 150"
-                    inputMode="numeric"
-                    value={voltage}
-                    error={voltageError}
-                    onChange={(e) => {
-                      setVoltage(e.target.value.replace(/[^\d]/g, ''));
-                      setVoltageError(undefined);
-                    }}
-                    trailing={<span className="pr-3 font-body text-sm text-ink-faint">volts</span>}
-                    optional
-                  />
-                )}
-                <TextArea
-                  label="What did you notice?"
-                  hint="A bang, sparks, a fallen wire — anything that helps EEDC find the fault."
-                  placeholder="e.g. Heard a loud bang from the transformer, then everything went off"
-                  value={note}
-                  maxLength={500}
-                  onChange={(e) => setNote(e.target.value)}
-                  optional
-                />
-                <div>
-                  <p className="flex items-baseline justify-between font-body text-sm font-medium text-ink">
-                    Photo <span className="font-normal text-ink-faint">Coming soon</span>
-                  </p>
-                  <label className="mt-2 flex cursor-pointer items-center gap-3 rounded-md border border-dashed border-line-strong p-4 transition-colors hover:border-ink">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-sunken">
-                      <CameraIcon className="h-5 w-5 text-ink-muted" aria-hidden="true" />
-                    </span>
-                    <span className="min-w-0 flex-1 truncate font-body text-sm text-ink">
-                      {photo ?? 'Add a photo of the pole, wire or meter'}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={(e) => setPhoto(e.target.files?.[0]?.name ?? null)}
-                    />
-                  </label>
-                  <p className="mt-2 font-body text-xs text-ink-faint">Photos aren’t uploaded yet. Never stand under a fallen or sparking wire to take one.</p>
-                </div>
+              <div className="mt-6">
+                <p className="-mt-3 mb-6 font-body text-sm text-ink-muted">All optional — send now if you’re in a hurry.</p>
+                {detailsSection}
               </div>
             )}
           </motion.div>
@@ -503,20 +619,7 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
       {/* Sticky action bar within thumb reach */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-line bg-surface px-5 pb-[max(env(safe-area-inset-bottom),16px)] pt-4">
         <div className="mx-auto max-w-xl space-y-2">
-          <AnimatePresence>
-            {sendError && (
-              <motion.p
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                role="alert"
-                className="flex items-start gap-2 rounded-md bg-canvas p-3 font-body text-sm text-ink"
-              >
-                <AlertTriangleIcon className="mt-0.5 h-4 w-4 shrink-0 text-status-low" aria-hidden="true" />
-                {sendError}
-              </motion.p>
-            )}
-          </AnimatePresence>
+          {errorBox}
           <Button full size="lg" loading={sending} onClick={next}>
             {step === 2 ? (sending ? 'Sending report…' : 'Send report') : 'Continue'}
           </Button>
@@ -531,6 +634,18 @@ export function ReportScreen({ initialIssue }: { initialIssue?: IssueType }) {
   );
 }
 
+function FormSection({ n, id, title, note, children }: { n: number; id?: string; title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="mt-10 scroll-mt-8">
+      <h2 className="flex items-center gap-3 font-display text-xl font-bold tracking-tight text-ink">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink font-body text-xs font-semibold text-canvas">{n}</span>
+        {title}
+        {note && <span className="ml-auto font-body text-xs font-normal text-ink-faint">{note}</span>}
+      </h2>
+      <div className="mt-4">{children}</div>
+    </section>
+  );
+}
 type Outcome = SubmitResult | { outcome: 'light_back' | 'still_off'; area: string };
 
 function Success({ result, issue }: { result: Outcome; issue: IssueType | null }) {
@@ -589,9 +704,15 @@ function Success({ result, issue }: { result: Outcome; issue: IssueType | null }
         transition={{ delay: 0.25 }}
         className="mt-10 flex w-full max-w-sm flex-col gap-2.5"
       >
-        <ButtonLink href="/map" size="lg" full>
-          See the live map
-        </ButtonLink>
+        {'incident' in result && result.incident ? (
+          <ButtonLink href={`/outages/${result.incident.id}`} size="lg" full>
+            Follow the repair
+          </ButtonLink>
+        ) : (
+          <ButtonLink href="/map" size="lg" full>
+            See the live map
+          </ButtonLink>
+        )}
         <ButtonLink href="/dashboard" size="lg" variant="secondary" full>
           Back home
         </ButtonLink>
